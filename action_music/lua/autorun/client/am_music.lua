@@ -4,6 +4,7 @@ local fade_time = CreateConVar("cl_am_fadetime_mult", "0.5", FCVAR_ARCHIVE, "How
 local continue_songs = CreateConVar("cl_am_continue_songs", "1", FCVAR_ARCHIVE, "Continue songs where we left off.")
 local volume_scale = CreateConVar("cl_am_volume", "0.5", FCVAR_ARCHIVE, "Volume. Epic.")
 local force_type = CreateConVar("cl_am_force_type", "0", FCVAR_ARCHIVE, "If you got some RP scenario where you want only one type of music playing you can change this. 0 - Disabled. 1 - Background. 2 - Battle. 3 - Intense Battle (Boss Battle)")
+local type_song = CreateConVar("cl_am_chat_print", "0", FCVAR_ARCHIVE, "Print music change to chat.")
 
 local last_type = ""
 local timer_name_counter = 0
@@ -133,12 +134,12 @@ local function am_play(typee, delay, force)
 	if force_type:GetInt() == 3 then typee = "battle_intensive" end
 	if last_type == typee and not force then return end
 
+	channel_locked = true
+
 	if songs[typee] == nil then
-		print(typee)
-		print("Important! There are no songs of type '"..typee.."'! Please install a pack that will fill that up.")
+		LocalPlayer():ChatPrint("Important! There are no songs of type '"..typee.."'! Please install a pack that will fill that up.")
 		return 
 	end
-
 
 	timer.Simple(delay, function()
 		local song = songs[typee][math.random(#songs[typee])]
@@ -152,7 +153,7 @@ local function am_play(typee, delay, force)
 		end
 
 		sound.PlayFile(song.path, "noblock", function(station, error_code, error_string)
-			print("Now playing: "..song.path.."!")
+			if type_song:GetBool() then LocalPlayer():ChatPrint("Now playing: "..song.path.."!") end
 
 			current_channel = station
 			current_song = song
@@ -163,7 +164,6 @@ local function am_play(typee, delay, force)
 
 			current_channel:SetVolume(0)
 			fade_channel(current_channel, 1 * volume_scale:GetFloat())
-
 			channel_locked = false
 		end)
 	end)
@@ -193,19 +193,20 @@ concommand.Add("cl_am_reshuffle", function(ply, cmd, args)
 
 	current_channel:Pause() // channel:stop() makes it null which later fucks up things :\
 
-	print("Reshuffled. Get out of the exit menu to make it play if you're in singleplayer.")
+	LocalPlayer():ChatPrint("Reshuffled. Get out of the exit menu to make it play if you're in singleplayer.")
 end)
 
 hook.Add("Think", "am_think", function()
 	if not amready then return end
 	if current_channel == nil then return end
 
+	if channel_locked then return end
+
 	local state = current_channel:GetState()
 
-	if (state == 0 or state == 2) and not channel_locked then
+	if (state == 0 or state == 2) then
 		current_song.last_duration = 0
 		am_play(current_song.typee, 0, true)
-		channel_locked = true
 	end
 end)
 
