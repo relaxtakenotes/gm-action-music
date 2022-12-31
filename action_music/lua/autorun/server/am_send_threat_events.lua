@@ -38,12 +38,12 @@ hook.Add("FinishMove", "am_threat_loop", function(ply, mv)
 
 		// if we are targeted and there's a boss nearby, prioritize being targeted by the boss for epic music
 		if is_targeted and table.HasValue(bosses, npc:GetClass()) then
-			by_npc = npc
+			boss = npc
 		end
 	end
 
 	net.Start("am_threat_event", true)
 	net.WriteBool(is_targeted)
-	net.WriteEntity(by_npc)
+	if IsValid(boss) then net.WriteEntity(boss) else net.WriteEntity(by_npc) end
 	net.Send(ply)
 end)

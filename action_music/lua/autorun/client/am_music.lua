@@ -12,22 +12,17 @@ local amready = false
 
 local current_channel = nil
 local past_channel = nil
-local current_song = nil
 local channel_locked = false
+
+local songs = {}
+local current_song = nil
+local chosen_songs = {}
+chosen_songs["battle"] = NULL
+chosen_songs["battle_intensive"] = NULL
+chosen_songs["background"] = NULL
 
 local is_targeted = nil
 local by_npc = nil
-
-local songs = {}
-
-//local function get_song_duration(path)
-//	status, result = pcall(function() return tonumber(string.Trim(string.match(path, "_%d%d%d"), "_"), 10) end)
-//	if status == true then return result end
-//
-//	status, result = pcall(function() return get_sound_duration(path) end)
-//	if status == true then return result end
-//	if status == false then return nil end // gmod will handle it later in gmodaudiochannel (badly but it will)
-//end
 
 local function parse_am()
 	for i, search_path in ipairs({"sound/am_music/battle/", "sound/am_music/battle_intensive/", "sound/am_music/background/"}) do
@@ -36,7 +31,6 @@ local function parse_am()
 			local song = {}
 
 			song.path = search_path .. mfile
-			//song.duration = get_song_duration(song.path)
 			song.last_duration = 0
 			local split_str = string.Split(search_path, "/")
 			song.typee = split_str[#split_str-1]
@@ -55,7 +49,6 @@ local function parse_nombat()
 			local song = {}
 
 			song.path = "sound/nombat/"..directory.."/"..mfile
-			//song.duration = get_song_duration(song.path)
 			song.last_duration = 0
 			if string.StartWith(mfile, "c") then song.typee = "battle" else song.typee = "background" end
 			song.index = #songs[song.typee]+1
@@ -72,8 +65,6 @@ local function parse_dynamo(dirr)
 			local song = {}
 
 			song.path = search_path .. mfile
-
-			//song.duration = get_song_duration(song.path)
 			song.last_duration = 0
 			local split_str = string.Split(search_path, "/")
 			song.typee = split_str[#split_str-1]
@@ -89,6 +80,12 @@ local function parse_dynamo(dirr)
 	end
 end
 
+local function shuffle_chosen_songs()
+	for key, item in pairs(chosen_songs) do
+		chosen_songs[key] = songs[key][math.random(#songs[key])]
+	end
+end
+
 local function initialize_songs()
 	songs["battle"] = {}
 	songs["battle_intensive"] = {}
@@ -98,6 +95,8 @@ local function initialize_songs()
 	parse_nombat()
 	parse_dynamo("battlemusic")
 	parse_dynamo("ayykyu_dynmus")
+
+	shuffle_chosen_songs()
 
 	amready = true
 end
@@ -136,13 +135,13 @@ local function am_play(typee, delay, force)
 
 	channel_locked = true
 
-	if songs[typee] == nil then
+	if chosen_songs[typee] == nil then
 		LocalPlayer():ChatPrint("Important! There are no songs of type '"..typee.."'! Please install a pack that will fill that up.")
 		return 
 	end
 
 	timer.Simple(delay, function()
-		local song = songs[typee][math.random(#songs[typee])]
+		local song = chosen_songs[typee]
 
 		if song == nil then return end
 
@@ -158,8 +157,6 @@ local function am_play(typee, delay, force)
 			current_channel = station
 			current_song = song
 
-			//if song.duration == nil then song.duration = current_channel:GetLength() end
-			//if song.last_duration + 1 >= song.duration then song.last_duration = 0 end
 			if continue_songs:GetBool() then current_channel:SetTime(song.last_duration, true) end
 
 			current_channel:SetVolume(0)
@@ -193,6 +190,8 @@ concommand.Add("cl_am_reshuffle", function(ply, cmd, args)
 
 	current_channel:Pause() // channel:stop() makes it null which later fucks up things :\
 
+	shuffle_chosen_songs()
+
 	LocalPlayer():ChatPrint("Reshuffled. Get out of the exit menu to make it play if you're in singleplayer.")
 end)
 
@@ -206,6 +205,7 @@ hook.Add("Think", "am_think", function()
 
 	if (state == 0 or state == 2) then
 		current_song.last_duration = 0
+		chosen_songs[current_song.typee] = songs[current_song.typee][math.random(#songs[current_song.typee])]
 		am_play(current_song.typee, 0, true)
 	end
 end)
