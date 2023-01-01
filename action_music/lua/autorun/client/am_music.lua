@@ -1,4 +1,4 @@
-local bosses = {"npc_combinegunship", "npc_hunter", "npc_helicopter", "npc_strider"}
+local bosses = {"npc_combinegunship", "npc_hunter", "npc_helicopter", "npc_strider", "a_shit_ton_of_enemies"}
 
 local fade_time = CreateConVar("cl_am_fadetime_mult", "0.5", FCVAR_ARCHIVE, "How fast the music will change.", 0.01, 10)
 local continue_songs = CreateConVar("cl_am_continue_songs", "1", FCVAR_ARCHIVE, "Continue songs where we left off.")
@@ -173,8 +173,7 @@ end
 net.Receive("am_threat_event", function()
 	if not amready then return end
 	is_targeted = net.ReadBool()
-	by_npc = net.ReadEntity()
-	if IsValid(by_npc) then by_npc = by_npc:GetClass() end
+	by_npc = net.ReadString()
 
 	if is_targeted and table.HasValue(bosses, by_npc) then
 		am_play("battle_intensive", 0)
