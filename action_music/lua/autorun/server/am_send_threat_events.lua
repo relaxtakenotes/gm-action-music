@@ -4,6 +4,24 @@ local allow_team_trigger = CreateConVar("sv_am_allow_team_trigger", "1", FCVAR_A
 local allow_alt_trigger = CreateConVar("sv_am_allow_alternate_trigger", "1", FCVAR_ARCHIVE, "If the npc is close to you, hates you and is in combat/alert, then mark him as targeting us.")
 local bosses = {"npc_combinegunship", "npc_hunter", "npc_helicopter", "npc_strider"}
 
+local function targeted_teammate_is_near(target, ply)
+	if not allow_team_trigger:GetBool() then return false end
+	if not target:IsNPC() then return false end
+	if target:Disposition(ply) != D_LI then return false end
+	if target:GetPos():Distance(ply:GetPos()) > 1250 then return false end
+
+	return true
+end
+
+local function enemy_is_alerted_and_close(npc, ply)
+	if not allow_alt_trigger:GetBool() then return false end
+	if npc:Disposition(ply) != D_HT then return false end
+	if npc:GetPos():Distance(ply:GetPos()) > 1250 then return false end 
+	if npc:GetNPCState() != NPC_STATE_COMBAT and npc:GetNPCState() != NPC_STATE_ALERT and npc:GetActivity() != ACT_COMBAT_IDLE then return false end
+
+	return true
+end
+
 hook.Add("FinishMove", "am_threat_loop", function(ply, mv)
 	local is_targeted = false
 	local by_npc = nil
@@ -25,13 +43,13 @@ hook.Add("FinishMove", "am_threat_loop", function(ply, mv)
 
 		// if target is valid and it's us. then we are targeted by some npc
 		// or if we can trigger by team then if the friendly npc close to us is getting targeted then we get targeted as well
-		if IsValid(target) and (target == ply or (allow_team_trigger:GetBool() and target:IsNPC() and target:Disposition(ply) == D_LI and target:GetPos():Distance(ply:GetPos()) < 1250)) then
+		if IsValid(target) and (target == ply or targeted_teammate_is_near(target, ply)) then
 			is_targeted = true
 			by_npc = npc
 		end
 
 		// if we arent targeted but there are enemy npc's nearby that are in combat/alert then count us as targeted
-		if not is_targeted and allow_alt_trigger:GetBool() and (IsValid(target) and (npc:Disposition(ply) == D_HT and npc:GetPos():Distance(ply:GetPos()) < 1250 and (npc:GetNPCState() == NPC_STATE_COMBAT or npc:GetNPCState() == NPC_STATE_ALERT or npc:GetActivity() == ACT_COMBAT_IDLE))) then
+		if not is_targeted and enemy_is_alerted_and_close(npc, ply) then
 			is_targeted = true
 			by_npc = npc
 		end

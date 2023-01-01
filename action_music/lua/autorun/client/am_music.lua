@@ -135,13 +135,15 @@ local function am_play(typee, delay, force)
 
 	channel_locked = true
 
-	if chosen_songs[typee] == nil then
+	if chosen_songs[typee] == nil or chosen_songs[typee] == NULL then
 		LocalPlayer():ChatPrint("Important! There are no songs of type '"..typee.."'! Please install a pack that will fill that up.")
 		return 
 	end
 
 	timer.Simple(delay, function()
 		local song = chosen_songs[typee]
+
+		if not continue_songs:GetBool() then song = songs[typee][math.random(#songs[typee])] end
 
 		if song == nil then return end
 
