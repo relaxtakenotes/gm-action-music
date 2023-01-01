@@ -66,7 +66,7 @@ hook.Add("FinishMove", "am_threat_loop", function(ply, mv)
 	// say so to the client until they are stopped being targeted at all, even if the enemy amount became below the threshold
 	if not is_targeted then ply.enemy_amount = 0 ply.targeted_by_shitton = false end
 
-	if ply.enemy_amount > enemy_threshold:GetInt() then
+	if ply.enemy_amount > enemy_threshold:GetInt() or boss != "" then
 		ply.targeted_by_shitton = true
 	end
 

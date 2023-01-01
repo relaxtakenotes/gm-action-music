@@ -2,6 +2,7 @@ local bosses = {"npc_combinegunship", "npc_hunter", "npc_helicopter", "npc_strid
 
 local fade_time = CreateConVar("cl_am_fadetime_mult", "0.5", FCVAR_ARCHIVE, "How fast the music will change.", 0.01, 10)
 local continue_songs = CreateConVar("cl_am_continue_songs", "1", FCVAR_ARCHIVE, "Continue songs where we left off.")
+local reset_last_duration = CreateConVar("cl_am_reshuffle_period", "60", FCVAR_ARCHIVE, "Shuffle some songs in a given period. (0 is disabled)")
 local volume_scale = CreateConVar("cl_am_volume", "0.5", FCVAR_ARCHIVE, "Volume. Epic.")
 local force_type = CreateConVar("cl_am_force_type", "0", FCVAR_ARCHIVE, "If you got some RP scenario where you want only one type of music playing you can change this. 0 - Disabled. 1 - Background. 2 - Battle. 3 - Intense Battle (Boss Battle)")
 local type_song = CreateConVar("cl_am_chat_print", "0", FCVAR_ARCHIVE, "Print music change to chat.")
@@ -13,6 +14,8 @@ local amready = false
 local current_channel = nil
 local past_channel = nil
 local channel_locked = false
+
+local last_forget_time = 0
 
 local songs = {}
 local current_song = nil
@@ -82,6 +85,7 @@ end
 
 local function shuffle_chosen_songs()
 	for key, item in pairs(chosen_songs) do
+		if not songs[key] then continue end
 		chosen_songs[key] = songs[key][math.random(#songs[key])]
 	end
 end
@@ -136,7 +140,7 @@ local function am_play(typee, delay, force)
 	channel_locked = true
 
 	if chosen_songs[typee] == nil or chosen_songs[typee] == NULL then
-		LocalPlayer():ChatPrint("Important! There are no songs of type '"..typee.."'! Please install a pack that will fill that up.")
+		chat.AddText(Color(50, 50, 255), "[Action Music] ", Color(255, 255, 255), "There are no songs of type ", typee, ". Please include something in it!")
 		return 
 	end
 
@@ -154,7 +158,11 @@ local function am_play(typee, delay, force)
 		end
 
 		sound.PlayFile(song.path, "noblock", function(station, error_code, error_string)
-			if type_song:GetBool() then LocalPlayer():ChatPrint("Now playing: "..song.path.."!") end
+			if type_song:GetBool() then
+				local split_str = string.Split(song.path, "/")
+				local name = string.Split(split_str[#split_str], ".")[1]
+				chat.AddText(Color(50, 50, 255), "[Action Music] ", Color(255, 255, 255), "Now playing: ", name)
+			end
 
 			current_channel = station
 			current_song = song
@@ -193,7 +201,7 @@ concommand.Add("cl_am_reshuffle", function(ply, cmd, args)
 
 	shuffle_chosen_songs()
 
-	LocalPlayer():ChatPrint("Reshuffled. Get out of the exit menu to make it play if you're in singleplayer.")
+	chat.AddText(Color(50, 50, 255), "[Action Music] ", Color(255, 255, 255), "Reshuffled!")
 end)
 
 hook.Add("Think", "am_think", function()
@@ -208,6 +216,14 @@ hook.Add("Think", "am_think", function()
 		current_song.last_duration = 0
 		chosen_songs[current_song.typee] = songs[current_song.typee][math.random(#songs[current_song.typee])]
 		am_play(current_song.typee, 0, true)
+	end
+end)
+
+hook.Add("Think", "am_think_forget", function()
+	if not reset_last_duration:GetBool() then return end
+	if CurTime() - last_forget_time > reset_last_duration:GetInt() then
+		last_forget_time = CurTime()
+		shuffle_chosen_songs()
 	end
 end)
 
