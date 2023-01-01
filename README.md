@@ -5,7 +5,7 @@
  - Automatic fade-in and fade-out.
  - Ease of use
  - Dynamo/sbm and nombat pack parsing
- - I wanted to put "better performance" into here because I don't do a lot per tick (compared to the alternatives(not fact checked)) but lets be real, neither really take up much in the first place.
+ - Different types of "actions": battle, intensive battle, ambient
 
 ## How to use:
  Download the mod, put it into your addons folder and then create your own music pack by creating a folder, creating directories sound->am_music->battle/battle_intensive/background and sorting your music accordingly. Alternatively you may download dynamo/sbm and nombat packs, they will be parsed as well. One thing you have to keep in mind is that all different types have to be filled, otherwise your console will be spammed.
