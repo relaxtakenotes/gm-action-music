@@ -14,9 +14,7 @@ chosen_songs["battle_intensive"] = NULL
 chosen_songs["background"] = NULL
 
 local last_type = ""
-local is_targeted = nil
 local timer_name_counter = 0
-local by_npc = nil
 local last_forget_time = 0
 
 local fade_time = CreateConVar("cl_am_fadetime_mult", "0.5", FCVAR_ARCHIVE, "How fast the music will change.", 0.01, 10)
@@ -26,8 +24,8 @@ local force_type = CreateConVar("cl_am_force_type", "0", FCVAR_ARCHIVE, "If you 
 local type_song = CreateConVar("cl_am_chat_print", "0", FCVAR_ARCHIVE, "Print music change to chat.")
 
 local am_enabled = {}
-am_enabled["battle"] = CreateConVar("cl_am_enabled_background", "1", FCVAR_ARCHIVE, "Obvious!")
-am_enabled["background"] = CreateConVar("cl_am_enabled_battle", "1", FCVAR_ARCHIVE, "Obvious!")
+am_enabled["battle"] = CreateConVar("cl_am_enabled_battle", "1", FCVAR_ARCHIVE, "Obvious!")
+am_enabled["background"] = CreateConVar("cl_am_enabled_background", "1", FCVAR_ARCHIVE, "Obvious!")
 am_enabled["battle_intensive"] = CreateConVar("cl_am_enabled_battle_intensive", "1", FCVAR_ARCHIVE, "Obvious!")
 
 local am_enabled_global = CreateConVar("cl_am_enabled_global", "1", FCVAR_ARCHIVE, "Obvious!")
@@ -53,14 +51,17 @@ cvars.AddChangeCallback("cl_am_volume_battle_intensive", function(convar_name, v
 end)
 
 cvars.AddChangeCallback("cl_am_enabled_background", function(convar_name, value_old, value_new)
+	if not am_current_song then return end
     if am_current_song.typee == "background" and tonumber(value_new) == 0 and IsValid(am_current_channel) then am_current_channel:Stop() end
 end)
 
 cvars.AddChangeCallback("cl_am_enabled_battle", function(convar_name, value_old, value_new)
+	if not am_current_song then return end
     if am_current_song.typee == "battle" and tonumber(value_new) == 0 and IsValid(am_current_channel) then am_current_channel:Stop() end
 end)
 
 cvars.AddChangeCallback("cl_am_enabled_battle_intensive", function(convar_name, value_old, value_new)
+	if not am_current_song then return end
 	if am_current_song.typee == "battle_intensive" and tonumber(value_new) == 0 and IsValid(am_current_channel) then am_current_channel:Stop() end
 end)
 
@@ -172,9 +173,12 @@ end
 
 local function am_play(typee, delay, force)
 	if not am_enabled_global:GetBool() then return end
-	if not am_enabled[typee]:GetBool() then return end
 	if not amready then return end
 	if channel_locked then return end
+	if not am_enabled[typee]:GetBool() then
+		if typee == "battle" then typee = "background" end
+		if typee == "battle_intensive" and am_enabled["battle"]:GetBool() then typee = "battle" elseif typee == "battle_intensive" then typee = "background" end
+	end
 	if force_type:GetInt() == 1 then typee = "background" end
 	if force_type:GetInt() == 2 then typee = "battle" end
 	if force_type:GetInt() == 3 then typee = "battle_intensive" end
@@ -184,7 +188,6 @@ local function am_play(typee, delay, force)
 		chat.AddText(Color(50, 50, 255), "[Action Music] ", Color(255, 255, 255), "There are no songs of type ", typee, ". Please include something in it!")
 		return 
 	end
-
 
 	channel_locked = true
 
@@ -197,6 +200,13 @@ local function am_play(typee, delay, force)
 			past_channel = am_current_channel
 			songs[am_current_song.typee][am_current_song.index].last_duration = past_channel:GetTime()
 			fade_channel(past_channel, 0)
+		end
+
+		am_current_song = song
+
+		if not am_enabled[typee]:GetBool() then
+			channel_locked = false
+			return 
 		end
 
 		sound.PlayFile(song.path, "noblock", function(station, error_code, error_string)
@@ -214,7 +224,6 @@ local function am_play(typee, delay, force)
 			end
 
 			am_current_channel = station
-			am_current_song = song
 
 			if continue_songs:GetBool() then am_current_channel:SetTime(song.last_duration, true) end
 
@@ -229,17 +238,16 @@ end
 net.Receive("am_threat_event", function()
 	if not am_enabled_global:GetBool() then return end
 	if not amready then return end
-	is_targeted = net.ReadBool()
-	by_npc = net.ReadString()
+	local is_targeted = net.ReadBool()
+	local by_npc = net.ReadString()
 
 	if is_targeted and table.HasValue(bosses, by_npc) then
-		am_play("battle_intensive", 0)
+		am_play("battle_intensive", 0, false)
 	elseif is_targeted then
-		am_play("battle", 0)
+		am_play("battle", 0, false)
 	else
-		am_play("background", 2)
+		am_play("background", 2, false)
 	end
-
 end)
 
 hook.Add("Think", "am_think", function()
