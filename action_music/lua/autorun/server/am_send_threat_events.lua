@@ -32,8 +32,8 @@ hook.Add("FinishMove", "am_threat_loop", function(ply, mv)
 		ply.am_timeout = math.max(ply.am_timeout - FrameTime(), 0) 
 		return 
 	end
-
 	ply.am_timeout = 1
+
 	if ply.targeted_by_shitton == nil then ply.targeted_by_shitton = false end
 	ply.enemy_amount = 0
 

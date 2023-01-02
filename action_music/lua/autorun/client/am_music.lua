@@ -105,9 +105,6 @@ local function initialize_songs()
 	amready = true
 end
 
-concommand.Add("cl_am_initialize_songs", function(ply, cmd, args)
-	initialize_songs()
-end)
 
 local function fade_channel(channel, to)
 	local from = channel:GetVolume()
@@ -132,17 +129,18 @@ end
 
 local function am_play(typee, delay, force)
 	if not amready then return end
+	if channel_locked then return end
 	if force_type:GetInt() == 1 then typee = "background" end
 	if force_type:GetInt() == 2 then typee = "battle" end
 	if force_type:GetInt() == 3 then typee = "battle_intensive" end
 	if last_type == typee and not force then return end
 
-	channel_locked = true
-
 	if chosen_songs[typee] == nil or chosen_songs[typee] == NULL then
 		chat.AddText(Color(50, 50, 255), "[Action Music] ", Color(255, 255, 255), "There are no songs of type ", typee, ". Please include something in it!")
 		return 
 	end
+
+	channel_locked = true
 
 	timer.Simple(delay, function()
 		local song = chosen_songs[typee]
@@ -158,10 +156,17 @@ local function am_play(typee, delay, force)
 		end
 
 		sound.PlayFile(song.path, "noblock", function(station, error_code, error_string)
+			channel_locked = false
+			local split_str = string.Split(song.path, "/")
+			local name = string.StripExtension(split_str[#split_str])
+
 			if type_song:GetBool() then
-				local split_str = string.Split(song.path, "/")
-				local name = string.Split(split_str[#split_str], ".")[1]
 				chat.AddText(Color(50, 50, 255), "[Action Music] ", Color(255, 255, 255), "Now playing: ", name)
+			end
+
+			if not station then 
+				chat.AddText(Color(50, 50, 255), "[Action Music] ", Color(255, 50, 50), "Failed playing: ", name, "\n\t\t\tError Code: ", error_code, "\n\t\t\tError: ", error_string, "\n\t\t\tUsually any error can be resolved by making sure your title has no unicode characters. If you can't find any, simplify it.")
+				return 
 			end
 
 			current_channel = station
@@ -171,8 +176,9 @@ local function am_play(typee, delay, force)
 
 			current_channel:SetVolume(0)
 			fade_channel(current_channel, 1 * volume_scale:GetFloat())
-			channel_locked = false
+
 		end)
+
 	end)
 
 	last_type = typee
@@ -193,22 +199,10 @@ net.Receive("am_threat_event", function()
 
 end)
 
-concommand.Add("cl_am_reshuffle", function(ply, cmd, args)
-	if not amready then return end
-	if current_channel == nil then return end
-
-	current_channel:Pause() // channel:stop() makes it null which later fucks up things :\
-
-	shuffle_chosen_songs()
-
-	chat.AddText(Color(50, 50, 255), "[Action Music] ", Color(255, 255, 255), "Reshuffled!")
-end)
-
 hook.Add("Think", "am_think", function()
 	if not amready then return end
 	if current_channel == nil then return end
-
-	if channel_locked then return end
+	if engine.TickCount() % 20 != 0 then return end
 
 	local state = current_channel:GetState()
 
@@ -229,4 +223,19 @@ end)
 
 hook.Add("InitPostEntity", "am_initialize_songs", function() 
 	initialize_songs()
+end)
+
+concommand.Add("cl_am_initialize_songs", function(ply, cmd, args)
+	initialize_songs()
+end)
+
+concommand.Add("cl_am_reshuffle", function(ply, cmd, args)
+	if not amready then return end
+	if current_channel == nil then return end
+
+	current_channel:Pause() // channel:stop() makes it null which later fucks up things :\
+
+	shuffle_chosen_songs()
+
+	chat.AddText(Color(50, 50, 255), "[Action Music] ", Color(255, 255, 255), "Reshuffled!")
 end)
