@@ -4,6 +4,7 @@ local allow_team_trigger = CreateConVar("sv_am_allow_team_trigger", "1", FCVAR_A
 local allow_alt_trigger = CreateConVar("sv_am_allow_alternate_trigger", "1", FCVAR_ARCHIVE, "If the npc is close to you, hates you and is in combat/alert, then mark him as targeting us.")
 local enemy_threshold = CreateConVar("sv_am_enemy_threshold", "8", FCVAR_ARCHIVE, "If there are more than some amount of npc's that are ready to kick your ass, consider this an intense battle.")
 local bosses = {"npc_combinegunship", "npc_hunter", "npc_helicopter", "npc_strider", "a_shit_ton_of_enemies"}
+local ignore_list = {"npc_clawscanner", "npc_stalker", "npc_turret_floor", "npc_combinedropship", "npc_cscanner", "npc_turret_ceiling", "npc_combine_camera"}
 
 local function targeted_teammate_is_near(target, ply)
 	if not allow_team_trigger:GetBool() then return false end
@@ -38,6 +39,7 @@ hook.Add("FinishMove", "am_threat_loop", function(ply, mv)
 	ply.enemy_amount = 0
 
 	for _, npc in ipairs( ents.FindByClass( "npc_*" ) ) do
+		if table.HasValue(ignore_list, npc:GetClass()) then continue end
 		if not IsValid(npc) or not npc:IsNPC() or not npc.GetEnemy then continue end
 		local target = npc:GetEnemy()
 
