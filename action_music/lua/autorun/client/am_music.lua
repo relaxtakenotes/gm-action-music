@@ -23,52 +23,28 @@ local reset_last_duration = CreateConVar("cl_am_reshuffle_period", "60", FCVAR_A
 local force_type = CreateConVar("cl_am_force_type", "0", FCVAR_ARCHIVE, "If you got some RP scenario where you want only one type of music playing you can change this. 0 - Disabled. 1 - Background. 2 - Battle. 3 - Intense Battle (Boss Battle)")
 local type_song = CreateConVar("cl_am_chat_print", "0", FCVAR_ARCHIVE, "Print music change to chat.")
 
-local am_enabled = {}
-am_enabled["battle"] = CreateConVar("cl_am_enabled_battle", "1", FCVAR_ARCHIVE, "Obvious!")
-am_enabled["background"] = CreateConVar("cl_am_enabled_background", "1", FCVAR_ARCHIVE, "Obvious!")
-am_enabled["battle_intensive"] = CreateConVar("cl_am_enabled_battle_intensive", "1", FCVAR_ARCHIVE, "Obvious!")
-
 local am_enabled_global = CreateConVar("cl_am_enabled_global", "1", FCVAR_ARCHIVE, "Obvious!")
-
-local volume_scale = {}
-volume_scale["battle"] = CreateConVar("cl_am_volume_battle", "0.8", FCVAR_ARCHIVE, "Volume. Epic.")
-volume_scale["background"] = CreateConVar("cl_am_volume_background", "0.5", FCVAR_ARCHIVE, "Volume. Epic.")
-volume_scale["battle_intensive"] = CreateConVar("cl_am_volume_battle_intensive", "1", FCVAR_ARCHIVE, "Volume. Epic.")
-
-cvars.AddChangeCallback("cl_am_volume_battle", function(convar_name, value_old, value_new)
-	if tonumber(value_new) < 0.01 then print("Use cl_am_enabled for that.") volume_scale["battle"]:SetFloat(tonumber(value_old)) return end
-    if am_current_song.typee == "battle" then am_current_channel:SetVolume(tonumber(value_new)) end
-end)
-
-cvars.AddChangeCallback("cl_am_volume_background", function(convar_name, value_old, value_new)
-	if tonumber(value_new) < 0.01 then print("Use cl_am_enabled for that.") volume_scale["background"]:SetFloat(tonumber(value_old)) return end
-    if am_current_song.typee == "background" then am_current_channel:SetVolume(tonumber(value_new)) end
-end)
-
-cvars.AddChangeCallback("cl_am_volume_battle_intensive", function(convar_name, value_old, value_new)
-	if tonumber(value_new) < 0.01 then print("Use cl_am_enabled for that.") volume_scale["battle_intensive"]:SetFloat(tonumber(value_old)) return end
-    if am_current_song.typee == "battle_intensive" then am_current_channel:SetVolume(tonumber(value_new)) end
-end)
-
-cvars.AddChangeCallback("cl_am_enabled_background", function(convar_name, value_old, value_new)
-	if not am_current_song then return end
-    if am_current_song.typee == "background" and tonumber(value_new) == 0 and IsValid(am_current_channel) then am_current_channel:Stop() end
-end)
-
-cvars.AddChangeCallback("cl_am_enabled_battle", function(convar_name, value_old, value_new)
-	if not am_current_song then return end
-    if am_current_song.typee == "battle" and tonumber(value_new) == 0 and IsValid(am_current_channel) then am_current_channel:Stop() end
-end)
-
-cvars.AddChangeCallback("cl_am_enabled_battle_intensive", function(convar_name, value_old, value_new)
-	if not am_current_song then return end
-	if am_current_song.typee == "battle_intensive" and tonumber(value_new) == 0 and IsValid(am_current_channel) then am_current_channel:Stop() end
-end)
-
 cvars.AddChangeCallback("cl_am_enabled_global", function(convar_name, value_old, value_new)
 	if tonumber(value_new) == 0 and IsValid(am_current_channel) then am_current_channel:Stop() end
 end)
 
+local am_enabled = {}
+local volume_scale = {}
+
+for _, typee in ipairs({"battle", "background", "battle_intensive"}) do
+	volume_scale[typee] = CreateConVar("cl_am_volume_"..typee, "1", FCVAR_ARCHIVE, "Volume. Epic.")
+	am_enabled[typee] = CreateConVar("cl_am_enabled_"..typee, "1", FCVAR_ARCHIVE, "Obvious!")
+
+	cvars.AddChangeCallback("cl_am_volume_"..typee, function(convar_name, value_old, value_new)
+		if tonumber(value_new) < 0.01 then print("Use cl_am_enabled for that.") volume_scale[typee]:SetFloat(tonumber(value_old)) return end
+	    if am_current_song.typee == typee then am_current_channel:SetVolume(tonumber(value_new)) end
+	end)
+	
+	cvars.AddChangeCallback("cl_am_enabled_"..typee, function(convar_name, value_old, value_new)
+		if not am_current_song then return end
+	    if am_current_song.typee == typee and tonumber(value_new) == 0 and IsValid(am_current_channel) then am_current_channel:Stop() end
+	end)
+end
 
 local function parse_am()
 	for i, search_path in ipairs({"sound/am_music/battle/", "sound/am_music/battle_intensive/", "sound/am_music/background/"}) do
@@ -147,6 +123,28 @@ local function initialize_songs()
 
 	amready = true
 end
+
+concommand.Add("cl_Am_verify_songs", function() 
+	local failed = {}
+	for key, content in pairs(songs) do
+		for _, song in ipairs(content) do
+			sound.PlayFile(song.path, "noblock", function(station, error_code, error_string)
+				channel_locked = false
+				local split_str = string.Split(song.path, "/")
+				local name = string.StripExtension(split_str[#split_str])
+	
+				if not station then
+					table.insert(failed, {path=song.path, error_code=error_code, error_str=error_string})
+					return
+				end
+	
+				station:Stop()
+			end)
+		end
+	end
+	print("These are the songs that have failed to load:")
+	PrintTable(failed, 4)
+end)
 
 
 local function fade_channel(channel, to)
