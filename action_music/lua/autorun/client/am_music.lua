@@ -1,5 +1,3 @@
-local bosses = {"npc_combinegunship", "npc_hunter", "npc_helicopter", "npc_strider", "a_shit_ton_of_enemies"}
-
 local amready = false
 
 am_current_song = nil
@@ -12,6 +10,7 @@ local chosen_songs = {}
 chosen_songs["battle"] = NULL
 chosen_songs["battle_intensive"] = NULL
 chosen_songs["background"] = NULL
+chosen_songs["suspense"] = NULL
 
 local last_type = ""
 local timer_name_counter = 0
@@ -20,7 +19,7 @@ local last_forget_time = 0
 local fade_time = CreateConVar("cl_am_fadetime_mult", "0.5", FCVAR_ARCHIVE, "How fast the music will change.", 0.01, 10)
 local continue_songs = CreateConVar("cl_am_continue_songs", "1", FCVAR_ARCHIVE, "Continue songs where we left off.")
 local reset_last_duration = CreateConVar("cl_am_reshuffle_period", "60", FCVAR_ARCHIVE, "Shuffle some songs in a given period. (0 is disabled)")
-local force_type = CreateConVar("cl_am_force_type", "0", FCVAR_ARCHIVE, "If you got some RP scenario where you want only one type of music playing you can change this. 0 - Disabled. 1 - Background. 2 - Battle. 3 - Intense Battle (Boss Battle)")
+local force_type = CreateConVar("cl_am_force_type", "0", FCVAR_ARCHIVE, "If you got some RP scenario where you want only one type of music playing you can change this. 0 - Disabled. 1 - Background. 2 - Battle. 3 - Intense Battle (Boss Battle). 4 - Suspense")
 local type_song = CreateConVar("cl_am_chat_print", "0", FCVAR_ARCHIVE, "Print music change to chat.")
 
 local am_enabled_global = CreateConVar("cl_am_enabled_global", "1", FCVAR_ARCHIVE, "Obvious!")
@@ -31,7 +30,7 @@ end)
 local am_enabled = {}
 local volume_scale = {}
 
-for _, typee in ipairs({"battle", "background", "battle_intensive"}) do
+for _, typee in ipairs({"battle", "background", "battle_intensive", "suspense"}) do
 	volume_scale[typee] = CreateConVar("cl_am_volume_"..typee, "1", FCVAR_ARCHIVE, "Volume. Epic.")
 	am_enabled[typee] = CreateConVar("cl_am_enabled_"..typee, "1", FCVAR_ARCHIVE, "Obvious!")
 
@@ -47,19 +46,19 @@ for _, typee in ipairs({"battle", "background", "battle_intensive"}) do
 end
 
 local function parse_am()
-	for i, search_path in ipairs({"sound/am_music/battle/", "sound/am_music/battle_intensive/", "sound/am_music/background/"}) do
+	for i, search_path in ipairs({"sound/am_music/battle/", "sound/am_music/battle_intensive/", "sound/am_music/background/", "sound/am_music/suspense/"}) do
 		local files, _ = file.Find(search_path.."*", "GAME")
+		local split_str = string.Split(search_path, "/")
 		for i, mfile in ipairs(files) do
 			local song = {}
 
 			song.path = search_path .. mfile
 			song.last_duration = 0
-			local split_str = string.Split(search_path, "/")
 			song.typee = split_str[#split_str-1]
 			song.index = #songs[song.typee]+1
 
 			table.insert(songs[song.typee], song)
-		end		
+		end	
 	end
 end
 
@@ -76,6 +75,11 @@ local function parse_nombat()
 			song.index = #songs[song.typee]+1
 
 			table.insert(songs[song.typee], song)
+
+			if song.typee == "battle" then
+				song.typee = "battle_intensive"
+				table.insert(songs[song.typee], song)	
+			end
 		end		
 	end
 end
@@ -113,6 +117,7 @@ local function initialize_songs()
 	songs["battle"] = {}
 	songs["battle_intensive"] = {}
 	songs["background"] = {}
+	songs["suspense"] = {}
 
 	parse_am()
 	parse_nombat()
@@ -124,7 +129,7 @@ local function initialize_songs()
 	amready = true
 end
 
-concommand.Add("cl_Am_verify_songs", function() 
+concommand.Add("cl_am_verify_songs", function() 
 	local failed = {}
 	for key, content in pairs(songs) do
 		for _, song in ipairs(content) do
@@ -173,13 +178,40 @@ local function am_play(typee, delay, force)
 	if not am_enabled_global:GetBool() then return end
 	if not amready then return end
 	if channel_locked then return end
+	if typee == "suspense" and chosen_songs[typee] == nil or chosen_songs[typee] == NULL then
+		//print("no suspense songs, switching to battle")
+		typee = "battle"
+	end
 	if not am_enabled[typee]:GetBool() then
-		if typee == "battle" then typee = "background" end
-		if typee == "battle_intensive" and am_enabled["battle"]:GetBool() then typee = "battle" elseif typee == "battle_intensive" then typee = "background" end
+		if typee == "background" then
+			return
+		end
+
+		if typee == "battle" and am_enabled["background"]:GetBool() then 
+			typee = "background"
+		end
+		if typee == "battle" and not am_enabled["background"]:GetBool() then 
+			return
+		end
+
+		if typee == "battle_intensive" and am_enabled["battle"]:GetBool() then 
+			typee = "battle"
+		end
+		if typee == "battle_intensive" and not am_enabled["battle"]:GetBool() then
+			typee = "background" 
+		end
+
+		if typee == "suspense" and am_enabled["battle"]:GetBool() then
+			typee = "battle"
+		end
+		if typee == "suspense" and not am_enabled["battle"]:GetBool() then
+			typee = "background" 
+		end
 	end
 	if force_type:GetInt() == 1 then typee = "background" end
 	if force_type:GetInt() == 2 then typee = "battle" end
 	if force_type:GetInt() == 3 then typee = "battle_intensive" end
+	if force_type:GetInt() == 4 then typee = "suspense" end
 	if last_type == typee and not force then return end
 
 	if chosen_songs[typee] == nil or chosen_songs[typee] == NULL then
@@ -233,19 +265,29 @@ local function am_play(typee, delay, force)
 	last_type = typee
 end
 
+
 net.Receive("am_threat_event", function()
 	if not am_enabled_global:GetBool() then return end
 	if not amready then return end
-	local is_targeted = net.ReadBool()
-	local by_npc = net.ReadString()
 
-	if is_targeted and table.HasValue(bosses, by_npc) then
-		am_play("battle_intensive", 0, false)
-	elseif is_targeted then
-		am_play("battle", 0, false)
+	local is_targeted = net.ReadBool()
+	local hidden = net.ReadBool()
+	local boss_fight = net.ReadBool()
+
+	if is_targeted then
+		if hidden then 
+			am_play("suspense", 0, false)
+		else
+			if boss_fight then 
+				am_play("battle_intensive", 0, false)
+			else
+				am_play("battle", 0, false)
+			end
+		end
 	else
 		am_play("background", 2, false)
 	end
+
 end)
 
 hook.Add("Think", "am_think", function()
