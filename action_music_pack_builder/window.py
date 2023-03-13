@@ -13,6 +13,7 @@ import zipfile
 from winreg import ConnectRegistry, OpenKey, HKEY_LOCAL_MACHINE, QueryValue
 from pathlib import Path
 from shutil import rmtree
+from just_playback import Playback
 
 WINDOWFLAGS = imgui.WINDOW_NO_MOVE + imgui.WINDOW_NO_RESIZE + imgui.WINDOW_NO_SCROLL_WITH_MOUSE + imgui.WINDOW_NO_TITLE_BAR
 
@@ -31,7 +32,6 @@ funny = randint(0, len(funnies)-1)
 last_funny = 0
 
 progress_f = 0
-mpv_installed = False
 gmpublisher_ready_to_install = False
 gmpublisher_installed = ""
 ffmpeg_installed = False
@@ -41,7 +41,11 @@ ytdlp_installed = False
 khinsider_done = False
 khinsider_started = False
 
-backslash = os.sep#"\\" # SyntaxError: f-string expression part cannot include a backslash ?????????????????????????
+playback = Playback()
+player_volume = 0.75
+player_paused = False
+
+backslash = os.sep #"\\" # SyntaxError: f-string expression part cannot include a backslash ?????????????????????????
 
 def update_list(dirs=["input/"]):
     global music_list
@@ -206,20 +210,18 @@ def main(width):
     global current_song
     global current_dict
     global initialized
-    global mpv_installed
     global gmpublisher_installed
     global ffmpeg_installed
     global ffmpeg_install_status
     global ytdlp_installed
+    global player_paused
+    global player_volume
+    global player_pause_timer
 
     if not initialized:
         result = sp_run("where yt-dlp", stdout=PIPE)
         if "yt-dlp" in result.stdout.decode('utf-8'):
             ytdlp_installed = True
-
-        result = sp_run("where mpv", stdout=PIPE)
-        if "mpv.exe" in result.stdout.decode('utf-8'):
-            mpv_installed = True
 
         result = sp_run("where ffmpeg", stdout=PIPE)
         if "ffmpeg.exe" in result.stdout.decode('utf-8'):
@@ -283,42 +285,62 @@ def main(width):
         imgui.same_line()
         imgui.text(f"Action Type: {current_dict.get('action')}")
 
-        correct_pos_y(-3)
-        imgui.push_item_width(100)
-        start_m, start_s = divmod(current_dict.get("start"), 60)
-        end_m, end_s = divmod(current_dict.get("end"), 60)
-        start_str = f'{start_m:02d}:{start_s:02d}'
-        end_str =  f'{end_m:02d}:{end_s:02d}'
-        imgui.text("Start:")
-        imgui.same_line()
-        correct_pos_y(3)
-        imgui.push_id("startstr")
-        _, start_str = imgui.input_text('', start_str, 256)
-        imgui.same_line()
-        imgui.pop_id()
-        imgui.text("End:")
-        imgui.same_line()
-        imgui.push_id("endstr")
-        _, end_str = imgui.input_text('', end_str, 256)
-        imgui.pop_id()
-        imgui.pop_item_width()
-        try:
-            new_start = int(start_str.split(":")[0])*60 + min(int(start_str.split(":")[1]), 59)
-            new_end = int(end_str.split(":")[0])*60 + min(int(end_str.split(":")[1]), 59)
-        
-            current_dict["start"] = new_start
-            current_dict["end"] = new_end
-        except (ValueError, IndexError):
-            pass
-
         _, current_dict["normalize"] = imgui.checkbox("Normalize", current_dict["normalize"])
+        
+        if playback:
+            value = playback.curr_pos
 
-        if os.path.isdir("tools/mpv/") and os.path.isfile("tools/mpv/mpv.exe"):
-            if imgui.button("Open external audio player"):
-                Popen('"' + os.path.abspath("tools/mpv/mpv.exe") + '"' + ' "' + os.path.abspath(current_song) + '"')
-        elif mpv_installed:
-            if imgui.button("Open external audio player"):
-                Popen("mpv " + '"' + os.path.abspath(current_song) + '"')
+            if imgui.button("Mark Start"):
+                current_dict["start"] = value
+            imgui.same_line()
+            if imgui.button("Mark End"):
+                current_dict["end"] = value
+            imgui.same_line()
+
+            imgui.text(f"Start: {current_dict['start']} | End: {current_dict['end']}")
+
+            if imgui.button("|>"):
+                playback.set_volume(player_volume)
+                if player_paused:
+                    playback.resume()
+                else:
+                    playback.pause()
+                player_paused = not player_paused
+
+            imgui.same_line()
+
+            imgui.push_item_width((width - 76) * 0.9)
+            imgui.push_id("seek_slider")
+            changed, value = imgui.slider_float(
+                "", value,
+                min_value=0.0, max_value=playback.duration,
+                format="%.2f",
+                power=1.0
+            )
+            imgui.pop_id()
+            imgui.pop_item_width()
+
+            if changed:
+                playback.seek(value)
+
+            if value >= playback.duration - 0.05:
+                playback.seek(0)
+
+            imgui.same_line()
+            imgui.push_item_width((width - 9) * 0.1)
+            imgui.push_id("volume_slider")
+            volume_changed, player_volume = imgui.slider_float(
+                "", player_volume,
+                min_value=0.0, max_value=1.0,
+                format="%.2f",
+                power=1.0
+            )
+            imgui.pop_id()
+            imgui.pop_item_width()
+
+            if volume_changed:
+                playback.set_volume(player_volume)
+            
         
     imgui.end_child()
 
@@ -331,6 +353,8 @@ def render_music_list(width):
     global gmpublisher_ready_to_install
     global khinsider_done
     global ytdlp_installed
+    global player
+    global player_paused
 
     imgui.begin_child("pack_name", width-16, 35, border=True)
 
@@ -344,7 +368,7 @@ def render_music_list(width):
 
     imgui.begin_child("music_list_top", width-16, 35, border=True)
 
-    imgui.push_item_width((width-16)/3)
+
     if imgui.button("reset all"):
         imgui.open_popup("reset-all")
     imgui.same_line()
@@ -353,7 +377,12 @@ def render_music_list(width):
     imgui.same_line()
     if imgui.button("remove selected") and current_song and current_dict:
         imgui.open_popup("remove-selected")
-    imgui.pop_item_width()
+    imgui.same_line()
+    if imgui.button("open output"):
+        Popen(f"start \"\" \"{os.path.abspath('output/')}\"", shell=True)
+    imgui.same_line()
+    if imgui.button("open input"):
+        Popen(f"start \"\" \"{os.path.abspath('input/')}\"", shell=True)
     imgui.same_line()
 
     if imgui.begin_popup_modal("reset-all", True, flags=WINDOWFLAGS)[0]:
@@ -403,6 +432,10 @@ def render_music_list(width):
         imgui.same_line()
         correct_pos_y(3)
         if imgui.button(key.split(backslash)[-1]):
+            playback.load_file(key)
+            playback.play()
+            playback.pause()
+            player_paused = True
             current_song = key
             current_dict = value
 
@@ -416,10 +449,6 @@ def render_music_list(width):
     if imgui.button("khinsider"):
         imgui.open_popup("khinsiderdownload")
     imgui.same_line()
-
-    if (not os.path.isdir("tools/mpv/") or not os.path.isfile("tools/mpv/mpv.exe")) and not mpv_installed:
-        if imgui.button("install mpv"):
-            Popen(os.path.abspath("tools/mpv/updater.bat"), creationflags=CREATE_NEW_CONSOLE)
 
     if not gmpublisher_installed:
         imgui.same_line()
