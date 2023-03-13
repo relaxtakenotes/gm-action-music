@@ -102,6 +102,8 @@ def khinsider_download(url):
 def _process_songs():
     global progress_f
     for key, value in music_list.items():
+        if value["action"] == "unknown":
+            continue
         value["name"] = os.path.splitext(value["name"])[0].encode("ascii", errors="ignore")
         value["name"] = value["name"].decode().replace(".", "")
         audio = AudioSegment.from_file(key)
@@ -118,15 +120,21 @@ def _process_songs():
         audio.export(f'output/{pack_name}/sound/am_music/{value["action"]}/{value["name"]}.ogg', format="ogg")
         progress_f += 1
 
-def process_songs():
+_show_progress = False
+
+def process_songs(bypass=False):
     global progress_f
+    global _show_progress
 
     progress_f = 0
 
-    for key, value in music_list.items():
-        if value["action"] == "unknown":
-            imgui.open_popup("warning-unknown")
-            return
+    if not bypass:
+        for key, value in music_list.items():
+            if value["action"] == "unknown":
+                _show_progress = False
+                imgui.open_popup("warning-unknown")
+                return
+
     try:
         os.mkdir(f"output/{pack_name}")
         os.mkdir(f"output/{pack_name}/sound")
@@ -143,9 +151,21 @@ def process_songs():
     process_thread = Thread(target=_process_songs)
     process_thread.start()
 
+def progress_popup():
+    imgui.text("This might take a while.")
+    len_music_list = 0
+    for key, value in music_list.items():
+        if value["action"] != "unknown":
+            len_music_list += 1
+    imgui.text(f"Processed {progress_f} out of {len_music_list}")
+    if imgui.button("Exit"):
+        if progress_f >= len_music_list:
+            imgui.close_current_popup()
+
 def footer():
     global funny
     global last_funny
+    global _show_progress
 
     imgui.begin_child("footer", 0, 0, border=True)
     if time() - last_funny > 10:
@@ -165,17 +185,19 @@ def footer():
         process_songs()
 
     if imgui.begin_popup_modal("progress-stuff", True, flags=WINDOWFLAGS)[0]:
-        imgui.text("This might take a while.")
-        imgui.text(f"Processed {progress_f} out of {len(music_list)}")
-        if imgui.button("Exit"):
-            if progress_f >= len(music_list):
-                imgui.close_current_popup()
+        progress_popup()
         imgui.end_popup()
-
     if imgui.begin_popup_modal("warning-unknown", True, flags=WINDOWFLAGS)[0]:
-        imgui.text("Not all songs are configured. Go configure them, noob!")
-        if imgui.button("that's mean, but ok"):
-            imgui.close_current_popup()
+        if not _show_progress:
+            imgui.text("Not all songs are configured. Are you sure you want to ignore them?")
+            if imgui.button("no..."):
+                imgui.close_current_popup()
+            if imgui.button("YES!"):
+                #imgui.close_current_popup()
+                _show_progress = True
+                process_songs(bypass=True)
+        else:
+            progress_popup()
         imgui.end_popup()
 
     imgui.end_child()
