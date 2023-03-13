@@ -6,7 +6,7 @@ import OpenGL.GL as gl
 import imgui
 from imgui.integrations.sdl2 import SDL2Renderer
 from window import render
-width, height = 1280, 720
+width, height = 720, 720
 
 def main():
     window, gl_context = impl_pysdl2_init()

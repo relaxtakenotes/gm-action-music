@@ -9,7 +9,10 @@ from pydub import effects
 from threading import Thread
 import urllib.request
 import khinsider
+import zipfile
 from winreg import ConnectRegistry, OpenKey, HKEY_LOCAL_MACHINE, QueryValue
+from pathlib import Path
+from shutil import rmtree
 
 WINDOWFLAGS = imgui.WINDOW_NO_MOVE + imgui.WINDOW_NO_RESIZE + imgui.WINDOW_NO_SCROLL_WITH_MOUSE + imgui.WINDOW_NO_TITLE_BAR
 
@@ -31,22 +34,54 @@ progress_f = 0
 mpv_installed = False
 gmpublisher_ready_to_install = False
 gmpublisher_installed = ""
+ffmpeg_installed = False
+ffmpeg_install_status = "      "
+ytdlp_installed = False
 
 khinsider_done = False
 khinsider_started = False
 
-def update_list():
+backslash = os.sep#"\\" # SyntaxError: f-string expression part cannot include a backslash ?????????????????????????
+
+def update_list(dirs=["input/"]):
     global music_list
-    onlyfiles = [f for f in os.listdir("input/") if os.path.isfile(os.path.join("input/", f))]
     music_list = {}
-    for file in onlyfiles:
-        if not file.endswith(".mp3") and not file.endswith(".wav") and not file.endswith(".mp4a") and not file.endswith(".ogg") and not file.endswith(".flac") and not file.endswith(".webm") and not file.endswith(".wma") and not file.endswith(".aac"):
-            continue
-        music_list.update({"input/"+file: {"action": "unknown", "start": 0, "end": 0, "name": file.split('/')[-1], "normalize": False}})
+    for dirr in dirs:
+        for file in Path(dirr).rglob('*.*'):
+            file = str(file)
+            if not file.endswith(".mp3") and not file.endswith(".wav") and not file.endswith(".mp4a") and not file.endswith(".ogg") and not file.endswith(".flac") and not file.endswith(".webm") and not file.endswith(".wma") and not file.endswith(".aac"):
+                continue
+            action = "unknown"
+            try:
+                if file.split("\\")[4] and file.split("\\")[3] == "am_music":
+                    action = file.split("\\")[4]
+            except IndexError:
+                pass
+            music_list.update({file: {"action": action, "start": 0, "end": 0, "name": file.split(backslash)[-1], "normalize": False}})
 
 def correct_pos_y(pix):
     cursor_pos = imgui.get_cursor_pos()
     imgui.set_cursor_pos((cursor_pos.x, cursor_pos.y - pix))
+
+def _install_ffmpeg():
+    global ffmpeg_installed
+    global ffmpeg_install_status
+    ffmpeg_install_status = "Installing."
+    try:
+        urllib.request.urlretrieve("https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip", "ffmpeg.zip")
+        with zipfile.ZipFile("ffmpeg.zip", 'r') as zip_ref:
+            zip_ref.extractall(".")
+        os.remove("ffmpeg.zip")
+        os.rename("ffmpeg-master-latest-win64-gpl/bin/ffmpeg.exe", "ffmpeg.exe")
+        rmtree("ffmpeg-master-latest-win64-gpl/")
+    except Exception as e:
+        ffmpeg_install_status = e
+    ffmpeg_install_status = "Installed."
+    ffmpeg_installed = True
+
+def install_ffmpeg():
+    process_thread = Thread(target=_install_ffmpeg)
+    process_thread.start()    
 
 def _khinsider_download(url):
     global khinsider_done
@@ -151,11 +186,28 @@ def main(width):
     global initialized
     global mpv_installed
     global gmpublisher_installed
+    global ffmpeg_installed
+    global ffmpeg_install_status
+    global ytdlp_installed
 
     if not initialized:
+        result = sp_run("where yt-dlp", stdout=PIPE)
+        if "yt-dlp" in result.stdout.decode('utf-8'):
+            ytdlp_installed = True
+
         result = sp_run("where mpv", stdout=PIPE)
         if "mpv.exe" in result.stdout.decode('utf-8'):
             mpv_installed = True
+
+        result = sp_run("where ffmpeg", stdout=PIPE)
+        if "ffmpeg.exe" in result.stdout.decode('utf-8'):
+            ffmpeg_installed = True
+        if os.path.isfile("ffmpeg.exe"):
+            ffmpeg_installed = True
+
+        if not ffmpeg_installed:
+            imgui.open_popup("ffmpeg-install")
+            install_ffmpeg()
 
         try:
             reg = ConnectRegistry(None, HKEY_LOCAL_MACHINE)
@@ -167,15 +219,22 @@ def main(width):
         update_list()
         initialized = True
 
+    if imgui.begin_popup_modal("ffmpeg-install", True, flags=WINDOWFLAGS)[0]:
+        imgui.text(f"Installing FFMPEG (Status):")
+        imgui.text(ffmpeg_install_status)
+        if imgui.button("Quit"):
+            imgui.close_current_popup()
+        imgui.end_popup()
+
     imgui.begin_child("main", 0, -39, border=True)
 
     if current_song and current_dict:
-        imgui.text(f"Current Song: {current_song.split('/')[-1]}")
+        imgui.text(f"Current Song: {current_song.split(backslash)[-1]}")
         imgui.spacing()
         imgui.separator()
         imgui.spacing()
 
-        imgui.push_item_width(width - width*0.3 - 90)
+        imgui.push_item_width(width - 72)
         imgui.text("Name:")
         imgui.same_line()
         correct_pos_y(2)
@@ -249,10 +308,11 @@ def render_music_list(width):
     global khinsider_url
     global gmpublisher_ready_to_install
     global khinsider_done
+    global ytdlp_installed
 
-    imgui.begin_child("pack_name", width*0.3, 35, border=True)
+    imgui.begin_child("pack_name", width-16, 35, border=True)
 
-    imgui.push_item_width(width*0.3-16)
+    imgui.push_item_width(width-32)
     imgui.push_id("packname")
     _, pack_name = imgui.input_text('', pack_name, 256)
     imgui.pop_id()
@@ -260,9 +320,9 @@ def render_music_list(width):
 
     imgui.end_child()
 
-    imgui.begin_child("music_list_top", width*0.3, 35, border=True)
+    imgui.begin_child("music_list_top", width-16, 35, border=True)
 
-    imgui.push_item_width((width*0.3-16)/3)
+    imgui.push_item_width((width-16)/3)
     if imgui.button("reset all"):
         imgui.open_popup("reset-all")
     imgui.same_line()
@@ -287,7 +347,7 @@ def render_music_list(width):
     if imgui.begin_popup_modal("reset-current", True, flags=WINDOWFLAGS)[0]:
         imgui.text("Are you sure?")
         if imgui.button("yes!"):
-            current_dict = {"action": "unknown", "start": 0, "end": 0, "name": current_song.split('/')[-1], "normalize": False}
+            current_dict = {"action": "unknown", "start": 0, "end": 0, "name": current_song.split(backslash)[-1], "normalize": False}
             music_list[current_song] = current_dict
             imgui.close_current_popup()
         imgui.same_line()
@@ -309,7 +369,7 @@ def render_music_list(width):
 
     imgui.end_child()
 
-    imgui.begin_child("music_list", width*0.3, -39, border=True, flags=imgui.WINDOW_HORIZONTAL_SCROLLING_BAR)
+    imgui.begin_child("music_list", width-16, -39, border=True, flags=imgui.WINDOW_HORIZONTAL_SCROLLING_BAR)
 
     for key, value in music_list.items():
         if value["action"] == "unknown":
@@ -320,13 +380,13 @@ def render_music_list(width):
             imgui.text("V")
         imgui.same_line()
         correct_pos_y(3)
-        if imgui.button(key.split("/")[-1]):
+        if imgui.button(key.split(backslash)[-1]):
             current_song = key
             current_dict = value
 
     imgui.end_child()
 
-    imgui.begin_child("misc_buttons", width*0.3, 0, border=True)
+    imgui.begin_child("misc_buttons", width-16, 0, border=True)
 
     if imgui.button("yt-dlp"):
         imgui.open_popup("ytdownload")
@@ -355,19 +415,21 @@ def render_music_list(width):
             Popen(gmpublisher_installed, shell=True)
 
     if imgui.begin_popup_modal("ytdownload", True, flags=WINDOWFLAGS)[0]:
-        _text = "yt-dlp is not installed"
-        _btn = "Install"
-        if os.path.isdir("tools/yt-dlp/") and os.path.isfile("tools/yt-dlp/yt-dlp.exe"):
-            _text = "yt-dlp is installed"
-            _btn = "Update"
+        if not ytdlp_installed:
+            _text = "yt-dlp is not installed"
+            _btn = "Install"
+            if os.path.isdir("tools/yt-dlp/") and os.path.isfile("tools/yt-dlp/yt-dlp.exe"):
+                _text = "yt-dlp is installed"
+                _btn = "Update"
 
-        imgui.text(_text)
-        if imgui.button(_btn):
-            try:
-                os.mkdir("tools/yt-dlp/")
-            except FileExistsError:
-                pass
-            urllib.request.urlretrieve("https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe", "tools/yt-dlp/yt-dlp.exe")
+            imgui.text(_text)
+            
+            if imgui.button(_btn):
+                try:
+                    os.mkdir("tools/yt-dlp/")
+                except FileExistsError:
+                    pass
+                urllib.request.urlretrieve("https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe", "tools/yt-dlp/yt-dlp.exe")
 
         imgui.push_item_width(width * 0.3)
         _, ytdlp_url = imgui.input_text('', ytdlp_url, 256)
@@ -408,7 +470,7 @@ def render(width, height):
     imgui.push_style_var(imgui.STYLE_GRAB_ROUNDING, 0.0)
     imgui.push_style_var(imgui.STYLE_WINDOW_BORDERSIZE, 0.0)
     
-    imgui.set_next_window_size(width*0.3 + 16, height)
+    imgui.set_next_window_size(width, height*0.7)
     imgui.set_next_window_position(0, 0)
     imgui.begin("music_list_bg", True, flags=WINDOWFLAGS)
 
@@ -416,8 +478,8 @@ def render(width, height):
 
     imgui.end()
 
-    imgui.set_next_window_size(width - width*0.3 - 16, height)
-    imgui.set_next_window_position(width*0.3 + 16, 0)
+    imgui.set_next_window_size(width, height*0.3)
+    imgui.set_next_window_position(0, height*0.7)
     imgui.begin("main_bg", True, flags=WINDOWFLAGS)
 
     main(width)
