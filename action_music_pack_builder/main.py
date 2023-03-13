@@ -1,4 +1,8 @@
 # -*- coding: utf-8 -*-
+import os
+
+os.environ["PYSDL2_DLL_PATH"] = os.path.abspath(".")
+
 from sdl2 import *
 import ctypes
 import OpenGL.GL as gl
