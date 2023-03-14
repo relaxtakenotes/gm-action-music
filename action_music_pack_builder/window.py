@@ -53,14 +53,24 @@ def update_list(dirs=["input/"]):
     for dirr in dirs:
         for file in Path(dirr).rglob('*.*'):
             file = str(file)
+            try:
+                name, ext = os.path.splitext(file)
+                os.rename(file, name.encode("ascii", errors="ignore").decode().replace(".", "") + ext)
+                file = name.encode("ascii", errors="ignore").decode().replace(".", "") + ext
+            except PermissionError:
+                pass
+
             if not file.endswith(".mp3") and not file.endswith(".wav") and not file.endswith(".mp4a") and not file.endswith(".ogg") and not file.endswith(".flac") and not file.endswith(".webm") and not file.endswith(".wma") and not file.endswith(".aac"):
                 continue
+
             action = "unknown"
+            
             try:
                 if file.split("\\")[4] and file.split("\\")[3] == "am_music":
                     action = file.split("\\")[4]
             except IndexError:
                 pass
+
             music_list.update({file: {"action": action, "start": 0, "end": 0, "name": file.split(backslash)[-1], "normalize": False}})
 
 def correct_pos_y(pix):
@@ -108,8 +118,7 @@ def _process_songs():
     for key, value in music_list.items():
         if value["action"] == "unknown":
             continue
-        value["name"] = os.path.splitext(value["name"])[0].encode("ascii", errors="ignore")
-        value["name"] = value["name"].decode().replace(".", "")
+
         audio = AudioSegment.from_file(key)
         if value["normalize"]:
             audio = effects.normalize(audio)
@@ -121,7 +130,8 @@ def _process_songs():
         if value["start"] > 0 and value["end"] > 0:
             audio = audio[value["start"]*1000:value["end"]*1000]
 
-        audio.export(f'output/{pack_name}/sound/am_music/{value["action"]}/{value["name"]}.ogg', format="ogg")
+        name, _ = os.path.splitext(value["name"])
+        audio.export(f'output/{pack_name}/sound/am_music/{value["action"]}/{name}.ogg', format="ogg")
         progress_f += 1
 
 _show_progress = False
@@ -269,19 +279,15 @@ def main(width):
         
         if imgui.button("background"):
             current_dict["action"] = "background"
-            music_list[current_song] = current_dict
         imgui.same_line()
         if imgui.button("battle"):
             current_dict["action"] = "battle"
-            music_list[current_song] = current_dict
         imgui.same_line()
         if imgui.button("intensive battle"):
             current_dict["action"] = "battle_intensive"
-            music_list[current_song] = current_dict
         imgui.same_line()
         if imgui.button("suspense"):
             current_dict["action"] = "suspense"
-            music_list[current_song] = current_dict
         imgui.same_line()
         imgui.text(f"Action Type: {current_dict.get('action')}")
 
@@ -340,8 +346,7 @@ def main(width):
 
             if volume_changed:
                 playback.set_volume(player_volume)
-            
-        
+        music_list[current_song] = current_dict
     imgui.end_child()
 
 def render_music_list(width):
