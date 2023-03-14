@@ -44,6 +44,7 @@ khinsider_started = False
 playback = Playback()
 player_volume = 0.75
 player_paused = False
+player_seeking = False
 
 backslash = os.sep #"\\" # SyntaxError: f-string expression part cannot include a backslash ?????????????????????????
 
@@ -94,7 +95,7 @@ def _install_ffmpeg():
     ffmpeg_installed = True
 
 def install_ffmpeg():
-    process_thread = Thread(target=_install_ffmpeg)
+    process_thread = Thread(target=_install_ffmpeg, daemon=True)
     process_thread.start()    
 
 def _khinsider_download(url):
@@ -110,7 +111,7 @@ def khinsider_download(url):
     global khinsider_started
     khinsider_started = True
     khinsider_done = False
-    process_thread = Thread(target=_khinsider_download, args=(url,))
+    process_thread = Thread(target=_khinsider_download, args=(url,), daemon=True)
     process_thread.start()
 
 def _process_songs():
@@ -162,7 +163,7 @@ def process_songs(bypass=False):
 
     imgui.open_popup("progress-stuff")
 
-    process_thread = Thread(target=_process_songs)
+    process_thread = Thread(target=_process_songs, daemon=True)
     process_thread.start()
 
 def progress_popup():
@@ -216,7 +217,7 @@ def footer():
 
     imgui.end_child()
 
-def main(width):
+def main(width, mouse_x, mouse_y, lmb_is_down):
     global current_song
     global current_dict
     global initialized
@@ -227,6 +228,7 @@ def main(width):
     global player_paused
     global player_volume
     global player_pause_timer
+    global player_seeking
 
     if not initialized:
         result = sp_run("where yt-dlp", stdout=PIPE)
@@ -326,8 +328,16 @@ def main(width):
             imgui.pop_id()
             imgui.pop_item_width()
 
-            if changed:
+            if changed and lmb_is_down:
+                player_seeking = True
+
+            if player_seeking:
+                playback.pause()
                 playback.seek(value)
+
+            if player_seeking and not lmb_is_down:
+                player_seeking = False
+                playback.resume()
 
             if value >= playback.duration - 0.05:
                 playback.seek(0)
@@ -360,6 +370,7 @@ def render_music_list(width):
     global ytdlp_installed
     global player
     global player_paused
+    global playback
 
     imgui.begin_child("pack_name", width-16, 35, border=True)
 
@@ -377,7 +388,7 @@ def render_music_list(width):
     if imgui.button("reset all"):
         imgui.open_popup("reset-all")
     imgui.same_line()
-    if imgui.button("reset current") and current_song and current_dict:
+    if imgui.button("reset selected") and current_song and current_dict:
         imgui.open_popup("reset-current")
     imgui.same_line()
     if imgui.button("remove selected") and current_song and current_dict:
@@ -412,8 +423,10 @@ def render_music_list(width):
         imgui.end_popup()
 
     if imgui.begin_popup_modal("remove-selected", True, flags=WINDOWFLAGS)[0]:
-        imgui.text("Are you sure?")
+        imgui.text("Are you sure? You won't be able to return this file.")
         if imgui.button("yes!"):
+            playback = Playback()
+            os.remove(current_song)
             del music_list[current_song]
             current_song = ""
             current_dict = ""
@@ -474,18 +487,14 @@ def render_music_list(width):
         if not ytdlp_installed:
             _text = "yt-dlp is not installed"
             _btn = "Install"
-            if os.path.isdir("tools/yt-dlp/") and os.path.isfile("tools/yt-dlp/yt-dlp.exe"):
+            if os.path.isfile("tools/yt-dlp.exe"):
                 _text = "yt-dlp is installed"
                 _btn = "Update"
 
             imgui.text(_text)
             
             if imgui.button(_btn):
-                try:
-                    os.mkdir("tools/yt-dlp/")
-                except FileExistsError:
-                    pass
-                urllib.request.urlretrieve("https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe", "tools/yt-dlp/yt-dlp.exe")
+                urllib.request.urlretrieve("https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe", "tools/yt-dlp.exe")
 
         imgui.push_item_width(width * 0.3)
         _, ytdlp_url = imgui.input_text('', ytdlp_url, 256)
@@ -494,7 +503,7 @@ def render_music_list(width):
             imgui.close_current_popup()
         imgui.same_line()
         if imgui.button("Execute"):
-            Popen(f"\"{os.path.abspath('tools/yt-dlp/yt-dlp.exe')}\" -o \"{os.path.abspath('input/')}\\%(title)s.%(ext)s\" --extract-audio --audio-format mp3 --audio-quality 0 {ytdlp_url} && pause", creationflags=CREATE_NEW_CONSOLE)
+            Popen(f"\"{os.path.abspath('tools/yt-dlp.exe')}\" -o \"{os.path.abspath('input/')}\\%(title)s.%(ext)s\" --extract-audio --audio-format mp3 --audio-quality 0 {ytdlp_url} && pause", creationflags=CREATE_NEW_CONSOLE)
         imgui.end_popup()
 
     if imgui.begin_popup_modal("khinsiderdownload", True, flags=WINDOWFLAGS)[0]:
@@ -517,7 +526,7 @@ def render_music_list(width):
 
     imgui.end_child()
 
-def render(width, height):
+def render(width, height, mouse_x, mouse_y, lmb_is_down):
     imgui.push_style_var(imgui.STYLE_WINDOW_ROUNDING, 0.0)
     imgui.push_style_var(imgui.STYLE_CHILD_ROUNDING, 0.0)
     imgui.push_style_var(imgui.STYLE_POPUP_ROUNDING, 0.0)
@@ -538,7 +547,7 @@ def render(width, height):
     imgui.set_next_window_position(0, height*0.7)
     imgui.begin("main_bg", True, flags=WINDOWFLAGS)
 
-    main(width)
+    main(width, mouse_x, mouse_y, lmb_is_down)
     footer()
 
     imgui.end()

@@ -23,7 +23,7 @@ try: # Python 2
 except ImportError:
     from os import getcwd
 
-last_line = ""
+last_line = "..."
 
 class Silence(object):
     def __enter__(self):
@@ -349,6 +349,7 @@ class Soundtrack(object):
 
         Return True if all files were downloaded successfully, False if not.
         """
+
         path = os.path.join(getcwd(), path)
         path = os.path.abspath(os.path.realpath(path))
         if formatOrder:
@@ -453,6 +454,7 @@ def download(soundtrackId, path='', makeDirs=True, formatOrder=None, verbose=Fal
     """Download the soundtrack with the ID `soundtrackId`.
     See Soundtrack.download for more information.
     """
+    unicodePrint("Starting the download...")
     soundtrack = Soundtrack(soundtrackId)
     soundtrack.name # To conistently always load the content in advance.
     path = to_valid_filename(soundtrack.name) if path is None else path

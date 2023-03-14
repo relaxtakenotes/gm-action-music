@@ -1,12 +1,14 @@
 # -*- coding: utf-8 -*-
 import os
+import sys
 
 os.environ["PYSDL2_DLL_PATH"] = os.path.abspath(".")
+sys.stdout = open("output.log", "w+")
 
 from sdl2 import *
+import sdl2.ext.mouse
 import ctypes
 import OpenGL.GL as gl
-
 import imgui
 from imgui.integrations.sdl2 import SDL2Renderer
 from window import render
@@ -32,10 +34,12 @@ def main():
         w = ctypes.c_int()
         h = ctypes.c_int()
         SDL_GetWindowSize(window, w, h)
-
         width, height = w.value, h.value
 
-        render(width, height)
+        x, y = ctypes.c_int(0), ctypes.c_int(0)
+        button_state = mouse.SDL_GetMouseState(ctypes.byref(x), ctypes.byref(y))
+
+        render(width, height, x.value, y.value, sdl2.ext.mouse.ButtonState(button_state).left)
 
         gl.glClearColor(0.2, 0.2, 0.2, 1)
         gl.glClear(gl.GL_COLOR_BUFFER_BIT)
