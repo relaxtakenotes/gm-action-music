@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import os
 import sys
 
@@ -11,47 +10,58 @@ import ctypes
 import OpenGL.GL as gl
 import imgui
 from imgui.integrations.sdl2 import SDL2Renderer
-from window import render
-width, height = 720, 720
+from ui import gui
+import traceback
+
+width, height = 720, 800
 
 def main():
-    window, gl_context = impl_pysdl2_init()
-    imgui.create_context()
-    impl = SDL2Renderer(window)
+    c_ui = None
+    try:
+        c_ui = gui()
+        window, gl_context = impl_pysdl2_init()
+        imgui.create_context()
+        impl = SDL2Renderer(window)
 
-    running = True
-    event = SDL_Event()
-    while running:
-        while SDL_PollEvent(ctypes.byref(event)) != 0:
-            if event.type == SDL_QUIT:
-                running = False
-                break
-            impl.process_event(event)
-        impl.process_inputs()
+        running = True
+        event = SDL_Event()
 
-        imgui.new_frame()
+        in_error = False
+        text_traceback = ""
 
-        w = ctypes.c_int()
-        h = ctypes.c_int()
-        SDL_GetWindowSize(window, w, h)
-        width, height = w.value, h.value
+        while running:
+            while SDL_PollEvent(ctypes.byref(event)) != 0:
+                if event.type == SDL_QUIT:
+                    running = False
+                    break
+                impl.process_event(event)
+            impl.process_inputs()
 
-        x, y = ctypes.c_int(0), ctypes.c_int(0)
-        button_state = mouse.SDL_GetMouseState(ctypes.byref(x), ctypes.byref(y))
+            imgui.new_frame()
 
-        render(width, height, x.value, y.value, sdl2.ext.mouse.ButtonState(button_state).left)
+            w, h = ctypes.c_int(), ctypes.c_int()
+            SDL_GetWindowSize(window, w, h)
 
-        gl.glClearColor(0.2, 0.2, 0.2, 1)
-        gl.glClear(gl.GL_COLOR_BUFFER_BIT)
+            mx, my = ctypes.c_int(0), ctypes.c_int(0)
+            button_state = mouse.SDL_GetMouseState(ctypes.byref(mx), ctypes.byref(my))
+                
+            c_ui.render(width=w.value, height=h.value, mx=mx.value, my=my.value, buttonstate=sdl2.ext.mouse.ButtonState(button_state))
 
-        imgui.render()
-        impl.render(imgui.get_draw_data())
-        SDL_GL_SwapWindow(window)
+            gl.glClearColor(0.2, 0.2, 0.2, 1)
+            gl.glClear(gl.GL_COLOR_BUFFER_BIT)
 
-    impl.shutdown()
-    SDL_GL_DeleteContext(gl_context)
-    SDL_DestroyWindow(window)
-    SDL_Quit()
+            imgui.render()
+            impl.render(imgui.get_draw_data())
+            SDL_GL_SwapWindow(window)
+
+        c_ui.stop()
+        impl.shutdown()
+        SDL_GL_DeleteContext(gl_context)
+        SDL_DestroyWindow(window)
+        SDL_Quit()
+    except Exception:
+        c_ui.stop()
+        print(traceback.format_exc())
 
 def impl_pysdl2_init():
     global width, height

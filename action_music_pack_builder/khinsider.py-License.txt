@@ -1,4 +1,0 @@
-khinsider.py provides no license (as far as I know)
-Version seen in this repository is modified to fit the needs.
-
-The original repository for it can be found here: https://github.com/obskyr/khinsider

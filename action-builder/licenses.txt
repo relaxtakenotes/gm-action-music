@@ -1,0 +1,5 @@
+SDL2: https://www.libsdl.org/license.php
+CX_FREEZE: https://cx-freeze.readthedocs.io/en/latest/license.html
+khinsider.py: No license selected. Repository: https://github.com/obskyr/khinsider
+
+	
