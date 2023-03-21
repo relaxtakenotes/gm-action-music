@@ -263,7 +263,10 @@ class music_list():
         if extension not in [".mp3", ".wav", ".mp4a", ".ogg", ".flac"]:
             return
 
-        name = name.encode("ascii", errors="ignore").decode().replace(".", "") + extension
+        name = name.split("\\")
+        name[-1] = name[-1].encode("ascii", errors="ignore").decode().replace(".", "")
+        name = "\\".join(name) + extension
+        
         while True:
             try:
                 os.rename(file, name)
