@@ -301,6 +301,7 @@ class music_list():
             try:
                 name[-1] = re.sub(pattern, replace_to, name[-1])
             except Exception:
+                print(f"failed to rename {file}, {info}")
                 continue
             name = "\\".join(name) + extension
 
@@ -311,7 +312,9 @@ class music_list():
                 except PermissionError:
                     pass
                 except FileExistsError:
+                    print(f"file exists {file}, {info}")
                     break
+        sleep(0.3)
         self.update()
 
     def update(self):
@@ -463,8 +466,10 @@ class gui():
             imgui.same_line()
             if imgui.button("Execute"):
                 self.music = None
+                self.current_file = ""
+                self.current_settings = {}
+                sleep(0.1)
                 self.music_list.mass_rename(self.mass_rename_pattern, self.mass_rename_replace)
-                pass
                 
             imgui.end_popup()
 
