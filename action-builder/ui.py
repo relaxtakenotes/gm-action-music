@@ -305,17 +305,7 @@ class music_list():
                 continue
             name = "\\".join(name) + extension
 
-            while True:
-                try:
-                    os.rename(file, name)
-                    break
-                except PermissionError:
-                    pass
-                except FileExistsError:
-                    print(f"file exists {file}, {info}")
-                    break
-        sleep(0.3)
-        self.update()
+            self.songs[file]["name"] = name.split("\\")[-1]
 
     def update(self):
         self.songs = {}
