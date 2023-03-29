@@ -296,16 +296,11 @@ class music_list():
 
     def mass_rename(self, pattern, replace_to):
         for file, info in self.songs.items():
-            name, extension = os.path.splitext(file)
-            name = name.split("\\")
             try:
-                name[-1] = re.sub(pattern, replace_to, name[-1])
+                self.songs[file]["name"] = re.sub(pattern, replace_to, self.songs[file]["name"])
             except Exception:
                 print(f"failed to rename {file}, {info}")
                 continue
-            name = "\\".join(name) + extension
-
-            self.songs[file]["name"] = name.split("\\")[-1]
 
     def update(self):
         self.songs = {}
