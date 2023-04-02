@@ -26,9 +26,6 @@ def main():
         running = True
         event = SDL_Event()
 
-        in_error = False
-        text_traceback = ""
-
         while running:
             while SDL_PollEvent(ctypes.byref(event)) != 0:
                 if event.type == SDL_QUIT:
@@ -63,6 +60,27 @@ def main():
         c_ui.stop()
         print(traceback.format_exc())
 
+def dark_title_bar(window):
+    ''' 
+        These variable names are completely wrong.
+        However it works like I want it to and when I change it to be more correct it all fails.
+        So lets keep the spaghetti this way... 
+    '''
+
+    DWMWA_BORDER_COLOR = ctypes.c_int(20)
+
+    SDL_UpdateWindowSurface(window)
+    wminfo = SDL_SysWMinfo()
+    SDL_VERSION(wminfo.version)
+    SDL_GetWindowWMInfo(window, ctypes.byref(wminfo))
+    hwnd = wminfo.info.win.window
+    color = ctypes.c_ulong(0x000000FF)
+    ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR, ctypes.byref(color), ctypes.sizeof(color))
+
+    SDL_UpdateWindowSurface(window)
+    SDL_MinimizeWindow(window)
+    SDL_RestoreWindow(window)
+
 def impl_pysdl2_init():
     global width, height
     window_name = "Action Music"
@@ -89,6 +107,8 @@ def impl_pysdl2_init():
                               SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
                               width, height,
                               SDL_WINDOW_OPENGL|SDL_WINDOW_RESIZABLE)
+
+    dark_title_bar(window)
 
     if window is None:
         print("Error: Window could not be created! SDL Error: " + SDL_GetError().decode("utf-8"))
