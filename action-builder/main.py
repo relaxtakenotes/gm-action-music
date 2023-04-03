@@ -26,6 +26,26 @@ def main():
         running = True
         event = SDL_Event()
 
+        #w_width, w_height = ctypes.c_int(), ctypes.c_int()
+        #SDL_GetWindowSize(window, ctypes.byref(w_width), ctypes.byref(w_height))
+        #
+        #d_width, d_height = ctypes.c_int(), ctypes.c_int()
+        #SDL_GL_GetDrawableSize(window, ctypes.byref(d_width), ctypes.byref(d_height))
+        #
+        #w_width = w_width.value
+        #w_height = w_height.value
+        #d_width = d_width.value
+        #d_height = d_height.value
+        #
+        #font_scaling_factor = max(float(d_width) / w_width, float(d_height) / w_height)
+        #font_size_in_pixels = 14
+
+        #io = imgui.get_io()
+        #segoe_font = io.fonts.add_font_from_file_ttf(r"C:\Windows\Fonts\segoeui.ttf", font_size_in_pixels * font_scaling_factor)
+        #io.font_global_scale /= font_scaling_factor
+        #
+        #impl.refresh_font_texture()
+
         while running:
             while SDL_PollEvent(ctypes.byref(event)) != 0:
                 if event.type == SDL_QUIT:
@@ -34,6 +54,7 @@ def main():
                 impl.process_event(event)
             impl.process_inputs()
 
+
             imgui.new_frame()
 
             w, h = ctypes.c_int(), ctypes.c_int()
@@ -41,14 +62,15 @@ def main():
 
             mx, my = ctypes.c_int(0), ctypes.c_int(0)
             button_state = mouse.SDL_GetMouseState(ctypes.byref(mx), ctypes.byref(my))
-                
+
+            #with imgui.font(segoe_font):
             c_ui.render(width=w.value, height=h.value, mx=mx.value, my=my.value, buttonstate=sdl2.ext.mouse.ButtonState(button_state))
 
-            gl.glClearColor(0.2, 0.2, 0.2, 1)
+            gl.glClearColor(0, 0, 0, 0)
             gl.glClear(gl.GL_COLOR_BUFFER_BIT)
-
             imgui.render()
             impl.render(imgui.get_draw_data())
+
             SDL_GL_SwapWindow(window)
 
         c_ui.stop()
@@ -59,27 +81,6 @@ def main():
     except Exception:
         c_ui.stop()
         print(traceback.format_exc())
-
-def dark_title_bar(window):
-    ''' 
-        These variable names are completely wrong.
-        However it works like I want it to and when I change it to be more correct it all fails.
-        So lets keep the spaghetti this way... 
-    '''
-
-    DWMWA_BORDER_COLOR = ctypes.c_int(20)
-
-    SDL_UpdateWindowSurface(window)
-    wminfo = SDL_SysWMinfo()
-    SDL_VERSION(wminfo.version)
-    SDL_GetWindowWMInfo(window, ctypes.byref(wminfo))
-    hwnd = wminfo.info.win.window
-    color = ctypes.c_ulong(0x000000FF)
-    ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR, ctypes.byref(color), ctypes.sizeof(color))
-
-    SDL_UpdateWindowSurface(window)
-    SDL_MinimizeWindow(window)
-    SDL_RestoreWindow(window)
 
 def impl_pysdl2_init():
     global width, height
@@ -108,7 +109,20 @@ def impl_pysdl2_init():
                               width, height,
                               SDL_WINDOW_OPENGL|SDL_WINDOW_RESIZABLE)
 
-    dark_title_bar(window)
+    DWMWA_USE_IMMERSIVE_DARK_MODE = ctypes.c_int(20)
+
+    wminfo = SDL_SysWMinfo()
+    SDL_VERSION(wminfo)
+    SDL_GetWindowWMInfo(window, ctypes.byref(wminfo))
+
+    wm_window = wminfo.info.win.window
+
+    state = ctypes.c_int(2)
+    ctypes.windll.dwmapi.DwmSetWindowAttribute(wm_window, DWMWA_USE_IMMERSIVE_DARK_MODE, ctypes.byref(state), ctypes.sizeof(state))
+
+    SDL_UpdateWindowSurface(window)
+    SDL_MinimizeWindow(window)
+    SDL_RestoreWindow(window)
 
     if window is None:
         print("Error: Window could not be created! SDL Error: " + SDL_GetError().decode("utf-8"))
