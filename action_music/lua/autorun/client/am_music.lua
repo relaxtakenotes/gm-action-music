@@ -57,6 +57,17 @@ local function parse_am()
 			song.typee = split_str[#split_str-1]
 			song.index = #songs[song.typee]+1
 
+			local start_time_uf = string.match(mfile, "_%d%d_%d%d_%d%d_%d%d_")
+			if start_time_uf then
+				local shit = string.Split(string.Trim(start_time_uf, "_"), "_")
+				local start_minutes = shit[1]
+				local start_seconds = shit[2]
+				local end_minutes = shit[3]
+				local end_seconds = shit[4]
+				song.start = start_minutes * 60 + start_seconds
+				song.ending = end_minutes * 60 + end_seconds
+			end
+
 			table.insert(songs[song.typee], song)
 		end	
 	end
@@ -131,24 +142,25 @@ end
 
 concommand.Add("cl_am_verify_songs", function() 
 	local failed = {}
+
 	for key, content in pairs(songs) do
 		for _, song in ipairs(content) do
 			sound.PlayFile(song.path, "noblock", function(station, error_code, error_string)
-				channel_locked = false
 				local split_str = string.Split(song.path, "/")
 				local name = string.StripExtension(split_str[#split_str])
 	
-				if not station then
-					table.insert(failed, {path=song.path, error_code=error_code, error_str=error_string})
-					return
+				if error_code or error_string then
+					print("---------------")
+					print(song.path.." | "..error_code.." | "..error_string)
+					print("---------------")
 				end
-	
-				station:Stop()
+
+				if station then
+					station:Stop()
+				end
 			end)
 		end
 	end
-	print("These are the songs that have failed to load:")
-	PrintTable(failed, 4)
 end)
 
 
@@ -226,7 +238,7 @@ local function am_play(typee, delay, force)
 		if not continue_songs:GetBool() then song = songs[typee][math.random(#songs[typee])] end
 		if song == nil then return end
 
-		if IsValid(am_current_channel) then
+		if IsValid(am_current_channel) and am_current_song then
 			past_channel = am_current_channel
 			songs[am_current_song.typee][am_current_song.index].last_duration = past_channel:GetTime()
 			fade_channel(past_channel, 0)
@@ -245,6 +257,10 @@ local function am_play(typee, delay, force)
 			local name = string.StripExtension(split_str[#split_str])
 
 			if type_song:GetBool() then
+				local matched = string.match(name, "_%d%d_%d%d_%d%d_%d%d_")
+				if matched then
+					name = string.Replace(name, matched, "")
+				end
 				chat.AddText(Color(50, 50, 255), "[Action Music] ", Color(255, 255, 255), "Now playing: ", name)
 			end
 
@@ -256,6 +272,7 @@ local function am_play(typee, delay, force)
 			am_current_channel = station
 
 			if continue_songs:GetBool() then am_current_channel:SetTime(song.last_duration, true) end
+			if am_current_song.start != nil then am_current_channel:SetTime(am_current_song.start, true) end
 
 			am_current_channel:SetVolume(0)
 			fade_channel(am_current_channel, volume_scale[typee]:GetFloat())
@@ -273,6 +290,16 @@ net.Receive("am_threat_event", function()
 	local is_targeted = net.ReadBool()
 	local hidden = net.ReadBool()
 	local boss_fight = net.ReadBool()
+	local should_stop = net.ReadBool()
+
+	if should_stop then
+		if IsValid(am_current_channel) then
+			past_channel = am_current_channel
+			songs[am_current_song.typee][am_current_song.index].last_duration = past_channel:GetTime()
+			fade_channel(past_channel, 0)
+		end
+		return
+	end
 
 	if is_targeted then
 		if hidden then 
@@ -299,7 +326,9 @@ hook.Add("Think", "am_think", function()
 	local state = 0
 	if IsValid(am_current_channel) then state = am_current_channel:GetState() end
 
-	if state == 0 then
+	if LocalPlayer():Health() <= 0 then return end 
+
+	if state == 0 or (IsValid(am_current_channel) and am_current_song.ending != nil and am_current_channel:GetTime() >= am_current_song.ending) then
 		am_current_song.last_duration = 0
 		chosen_songs[am_current_song.typee] = songs[am_current_song.typee][math.random(#songs[am_current_song.typee])]
 		am_play(am_current_song.typee, 0, true)

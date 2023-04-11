@@ -108,6 +108,8 @@ hook.Add("FinishMove", "am_threat_loop", function(ply, mv)
 	//ply.am_boss_fight = false // this will be changed later
 	ply.am_enemy_amount = 0
 	ply.am_hidden_from_enemies = 0
+	ply.am_should_stop_prev = ply.am_should_stop
+	ply.am_should_stop = false
 
 	local ignore_bossfight_flag = false
 
@@ -190,11 +192,14 @@ hook.Add("FinishMove", "am_threat_loop", function(ply, mv)
 	//print("ply.am_hidden_timer", ply.am_hidden_timer)
 	//print("-------------")
 
-	if ply.am_is_targeted_prev != ply.am_is_targeted or ply.am_hidden_prev != ply.am_hidden or ply.am_boss_fight_prev != ply.am_boss_fight then
+	ply.am_should_stop = (ply:Health() <= 0)
+
+	if ply.am_is_targeted_prev != ply.am_is_targeted or ply.am_hidden_prev != ply.am_hidden or ply.am_boss_fight_prev != ply.am_boss_fight or ply.am_should_stop_prev != ply.am_should_stop then
 		net.Start("am_threat_event", true)
 		net.WriteBool(ply.am_is_targeted)
 		net.WriteBool(ply.am_hidden)
 		net.WriteBool(ply.am_boss_fight)
+		net.WriteBool(ply.am_should_stop)
 		net.Send(ply)
 	end
 end)
