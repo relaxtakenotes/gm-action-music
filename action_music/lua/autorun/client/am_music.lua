@@ -238,7 +238,7 @@ local function am_play(typee, delay, force)
 		if not continue_songs:GetBool() then song = songs[typee][math.random(#songs[typee])] end
 		if song == nil then return end
 
-		if IsValid(am_current_channel) and am_current_song then
+		if IsValid(am_current_channel) and am_current_song and am_current_song.typee and am_current_song.index then
 			past_channel = am_current_channel
 			songs[am_current_song.typee][am_current_song.index].last_duration = past_channel:GetTime()
 			fade_channel(past_channel, 0)
