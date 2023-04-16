@@ -239,9 +239,13 @@ local function am_play(typee, delay, force)
 		if song == nil then return end
 
 		if IsValid(am_current_channel) and am_current_song and am_current_song.typee and am_current_song.index then
-			past_channel = am_current_channel
-			songs[am_current_song.typee][am_current_song.index].last_duration = past_channel:GetTime()
-			fade_channel(past_channel, 0)
+			pcall(function() 
+				songs[am_current_song.typee][am_current_song.index].last_duration = am_current_channel:GetTime()
+			end)
+			pcall(function() 
+				past_channel = am_current_channel
+				fade_channel(past_channel, 0)
+			end)
 		end
 
 		am_current_song = song

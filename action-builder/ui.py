@@ -336,6 +336,12 @@ class gui():
         self.mass_rename_pattern = ""
         self.mass_rename_replace = ""
 
+        self.mass_cfg_start = 0
+        self.mass_cfg_end = 0
+        self.mass_cfg_normalize = False
+        self.mass_cfg_fade_start = 0
+        self.mass_cfg_fade_end = 0
+
         self.restore_last_session()
 
     def restore_last_session(self):
@@ -438,6 +444,9 @@ class gui():
         imgui.same_line()
         if imgui.button("Mass rename"):
             imgui.open_popup("mass-rename")
+        imgui.same_line()
+        if imgui.button("Mass Configure"):
+            imgui.open_popup("mass-cfg")
 
         if imgui.begin_popup_modal("mass-rename", True, flags=self.window_flags)[0]:
             imgui.text("This will rename all the files in the directory using a regex pattern you pass.")
@@ -456,6 +465,36 @@ class gui():
                 sleep(0.1)
                 self.music_list.mass_rename(self.mass_rename_pattern, self.mass_rename_replace)
                 
+            imgui.end_popup()
+
+        if imgui.begin_popup_modal("mass-cfg", True, flags=self.window_flags)[0]:
+            imgui.push_item_width(self.width * 0.5)
+            imgui.text("You can mass configure certain options in here.")
+            imgui.pop_item_width()
+
+            _, self.mass_cfg_start = imgui.input_float('Start', self.mass_cfg_start)
+            _, self.mass_cfg_end = imgui.input_float('End', self.mass_cfg_end)
+            _, self.mass_cfg_normalize = imgui.checkbox("Normalize", self.mass_cfg_normalize)
+            _, self.mass_cfg_fade_start = imgui.input_float('Fade Start', self.mass_cfg_fade_start)
+            _, self.mass_cfg_fade_end = imgui.input_float('Fade End', self.mass_cfg_fade_end)
+
+            if imgui.button("Quit"):
+                imgui.close_current_popup()
+            imgui.same_line()
+            if imgui.button("Execute"):
+                self.music = None
+                self.current_file = ""
+                self.current_settings = {}
+                for file, info in self.music_list.songs.items():
+                    self.music_list.songs[file] = {"action": info["action"],
+                                                   "start": self.mass_cfg_start,
+                                                   "end": self.mass_cfg_end,
+                                                   "normalize": self.mass_cfg_normalize,
+                                                   "name": info["name"],
+                                                   "fade_start": self.mass_cfg_fade_start,
+                                                   "fade_end": self.mass_cfg_fade_end
+                                                  }
+
             imgui.end_popup()
 
         if imgui.begin_popup_modal("reset-all", True, flags=self.window_flags)[0]:
