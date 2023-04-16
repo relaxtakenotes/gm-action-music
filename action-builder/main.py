@@ -13,7 +13,7 @@ from imgui.integrations.sdl2 import SDL2Renderer
 from ui import gui
 import traceback
 
-width, height = 720, 800
+width, height = 720, 850
 
 def main():
     c_ui = None
@@ -26,25 +26,25 @@ def main():
         running = True
         event = SDL_Event()
 
-        #w_width, w_height = ctypes.c_int(), ctypes.c_int()
-        #SDL_GetWindowSize(window, ctypes.byref(w_width), ctypes.byref(w_height))
-        #
-        #d_width, d_height = ctypes.c_int(), ctypes.c_int()
-        #SDL_GL_GetDrawableSize(window, ctypes.byref(d_width), ctypes.byref(d_height))
-        #
-        #w_width = w_width.value
-        #w_height = w_height.value
-        #d_width = d_width.value
-        #d_height = d_height.value
-        #
-        #font_scaling_factor = max(float(d_width) / w_width, float(d_height) / w_height)
-        #font_size_in_pixels = 14
+        w_width, w_height = ctypes.c_int(), ctypes.c_int()
+        SDL_GetWindowSize(window, ctypes.byref(w_width), ctypes.byref(w_height))
+        
+        d_width, d_height = ctypes.c_int(), ctypes.c_int()
+        SDL_GL_GetDrawableSize(window, ctypes.byref(d_width), ctypes.byref(d_height))
+        
+        w_width = w_width.value
+        w_height = w_height.value
+        d_width = d_width.value
+        d_height = d_height.value
+        
+        font_scaling_factor = max(float(d_width) / w_width, float(d_height) / w_height)
+        font_size_in_pixels = 16
 
-        #io = imgui.get_io()
-        #segoe_font = io.fonts.add_font_from_file_ttf(r"C:\Windows\Fonts\segoeui.ttf", font_size_in_pixels * font_scaling_factor)
-        #io.font_global_scale /= font_scaling_factor
-        #
-        #impl.refresh_font_texture()
+        io = imgui.get_io()
+        custom_font = io.fonts.add_font_from_file_ttf(r"roboto.ttf", font_size_in_pixels * font_scaling_factor)
+        io.font_global_scale /= font_scaling_factor
+        
+        impl.refresh_font_texture()
 
         while running:
             while SDL_PollEvent(ctypes.byref(event)) != 0:
@@ -63,10 +63,11 @@ def main():
             mx, my = ctypes.c_int(0), ctypes.c_int(0)
             button_state = mouse.SDL_GetMouseState(ctypes.byref(mx), ctypes.byref(my))
 
-            #with imgui.font(segoe_font):
-            c_ui.render(width=w.value, height=h.value, mx=mx.value, my=my.value, buttonstate=sdl2.ext.mouse.ButtonState(button_state))
+            with imgui.font(custom_font):
+                #imgui.show_style_editor()
+                c_ui.render(width=w.value, height=h.value, mx=mx.value, my=my.value, buttonstate=sdl2.ext.mouse.ButtonState(button_state))
 
-            gl.glClearColor(0, 0, 0, 0)
+            gl.glClearColor(0, 0, 0, 1)
             gl.glClear(gl.GL_COLOR_BUFFER_BIT)
             imgui.render()
             impl.render(imgui.get_draw_data())

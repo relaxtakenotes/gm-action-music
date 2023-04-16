@@ -363,12 +363,12 @@ class gui():
             json.dump(data, f)
 
     def push_style(self):
-        imgui.push_style_var(imgui.STYLE_WINDOW_ROUNDING, 0.0)
-        imgui.push_style_var(imgui.STYLE_CHILD_ROUNDING, 0.0)
-        imgui.push_style_var(imgui.STYLE_POPUP_ROUNDING, 0.0)
-        imgui.push_style_var(imgui.STYLE_FRAME_ROUNDING, 0.0)
-        imgui.push_style_var(imgui.STYLE_SCROLLBAR_ROUNDING, 0.0)
-        imgui.push_style_var(imgui.STYLE_GRAB_ROUNDING, 0.0)
+        imgui.push_style_var(imgui.STYLE_WINDOW_ROUNDING, 2.0)
+        imgui.push_style_var(imgui.STYLE_CHILD_ROUNDING, 2.0)
+        imgui.push_style_var(imgui.STYLE_POPUP_ROUNDING, 2.0)
+        imgui.push_style_var(imgui.STYLE_FRAME_ROUNDING, 2.0)
+        imgui.push_style_var(imgui.STYLE_SCROLLBAR_ROUNDING, 2.0)
+        imgui.push_style_var(imgui.STYLE_GRAB_ROUNDING, 2.0)
         imgui.push_style_var(imgui.STYLE_WINDOW_BORDERSIZE, 0.0)
 
         imgui.push_style_color(imgui.COLOR_TEXT, 1.00, 1.00, 1.00, 1.00)
@@ -420,23 +420,23 @@ class gui():
         imgui.pop_style_color(43)
 
     def draw_list_controls(self):
-        imgui.begin_child("music_list_top", self.width-16, 35, border=True)
-        if imgui.button("new"):
+        imgui.begin_child("music_list_top", self.width-16, 38, border=True)
+        if imgui.button("New"):
             imgui.open_popup("reset-all")
         imgui.same_line()
-        if imgui.button("default selected") and self.current_file and self.current_settings:
+        if imgui.button("Reset selected") and self.current_file and self.current_settings:
             imgui.open_popup("reset-current")
         imgui.same_line()
-        if imgui.button("remove selected") and self.current_file and self.current_settings:
+        if imgui.button("Remove selected") and self.current_file and self.current_settings:
             imgui.open_popup("remove-selected")
         imgui.same_line()
-        if imgui.button("open output"):
+        if imgui.button("Open output"):
             subprocess.Popen(f"start \"\" \"{os.path.abspath(OUTPUT_DIR)}\"", shell=True)
         imgui.same_line()
-        if imgui.button("open input"):
+        if imgui.button("Open input"):
             subprocess.Popen(f"start \"\" \"{os.path.abspath(INPUT_DIR)}\"", shell=True)
         imgui.same_line()
-        if imgui.button("mass rename"):
+        if imgui.button("Mass rename"):
             imgui.open_popup("mass-rename")
 
         if imgui.begin_popup_modal("mass-rename", True, flags=self.window_flags)[0]:
@@ -460,7 +460,7 @@ class gui():
 
         if imgui.begin_popup_modal("reset-all", True, flags=self.window_flags)[0]:
             imgui.text("This will wipe all the current configuration and you wont be able to return it. Continue?")
-            if imgui.button("yes!"):
+            if imgui.button("Yes!"):
                 self.music = None
                 self.current_settings = {}
                 self.current_file = ""
@@ -468,24 +468,24 @@ class gui():
                 self.music_list.update()
                 imgui.close_current_popup()
             imgui.same_line()
-            if imgui.button("no!"):
+            if imgui.button("No!"):
                 imgui.close_current_popup()
             imgui.end_popup()
 
         if imgui.begin_popup_modal("reset-current", True, flags=self.window_flags)[0]:
             imgui.text("Are you sure?")
-            if imgui.button("yes!"):
+            if imgui.button("Yes!"):
                 self.current_settings = {"action": "unknown", "start": 0, "end": 0, "name": self.current_file.split("\\")[-1], "normalize": False}
                 self.music_list.songs[self.current_file] = self.current_settings
                 imgui.close_current_popup()
             imgui.same_line()
-            if imgui.button("no!"):
+            if imgui.button("No!"):
                 imgui.close_current_popup()
             imgui.end_popup()
 
         if imgui.begin_popup_modal("remove-selected", True, flags=self.window_flags)[0]:
             imgui.text("Are you sure? You won't be able to return this file.")
-            if imgui.button("yes!"):
+            if imgui.button("Yes!"):
                 self.music = None
                 os.remove(self.current_file)
                 del self.music_list.songs[self.current_file]
@@ -493,14 +493,14 @@ class gui():
                 self.current_settings = {}
                 imgui.close_current_popup()
             imgui.same_line()
-            if imgui.button("no!"):
+            if imgui.button("No!"):
                 imgui.close_current_popup()
             imgui.end_popup()
 
         imgui.end_child()
 
     def draw_music_list(self):
-        imgui.begin_child("music_list", self.width-16, -39, border=True, flags=imgui.WINDOW_HORIZONTAL_SCROLLING_BAR)
+        imgui.begin_child("music_list", self.width-16, -42, border=True, flags=imgui.WINDOW_HORIZONTAL_SCROLLING_BAR)
         for key, info in self.music_list.songs.items():
             _text = info.get("name")
             if self.current_file == key:
@@ -520,7 +520,7 @@ class gui():
         imgui.end_child()
 
     def draw_misc_buttons(self):
-        imgui.begin_child("misc_buttons", self.width-16, 0, border=True)
+        imgui.begin_child("misc_buttons", self.width-16, 38, border=True)
         if imgui.button("yt-dlp"):
             imgui.open_popup("ytdownload")
         imgui.same_line()
@@ -580,7 +580,7 @@ class gui():
         imgui.end_child()
 
     def draw_pack_name(self):
-        imgui.begin_child("pack_name", self.width-16, 35, border=True)
+        imgui.begin_child("pack_name", self.width-16, 38, border=True)
         imgui.push_item_width(self.width-32)
         imgui.push_id("packname")
         _, self.pack_name = imgui.input_text('', self.pack_name, 256)
@@ -682,7 +682,7 @@ class gui():
         imgui.end_child()
 
     def draw_footer(self):
-        imgui.begin_child("footer", 0, 37, border=True)
+        imgui.begin_child("footer", 0, 38, border=True)
         if imgui.button("Apply"):
             self.processor.process(self.pack_name)
             imgui.open_popup("processor-progress")
@@ -700,8 +700,8 @@ class gui():
         imgui.end_child()
 
     def draw_bottom_segment(self):
-        imgui.set_next_window_size(self.width, self.height*0.3)
-        imgui.set_next_window_position(0, self.height*0.7)
+        imgui.set_next_window_size(self.width, self.height*0.3 + 8)
+        imgui.set_next_window_position(0, self.height*0.7 - 8)
         imgui.begin("main_bg", True, flags=self.window_flags)
         self.draw_song_configuration()
         self.draw_footer()

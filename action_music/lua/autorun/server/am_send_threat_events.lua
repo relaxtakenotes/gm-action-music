@@ -9,7 +9,7 @@ local suspense = CreateConVar("sv_am_send_suspense", "1", FCVAR_ARCHIVE, "Allow 
 local hidden_time = CreateConVar("sv_am_hidden_time", "25", FCVAR_ARCHIVE, "After how long to consider a player hidden once he's out of enemy visibility.")
 local targeted_time = CreateConVar("sv_am_targeted_timer", "5", FCVAR_ARCHIVE, "How fast to switch off from the targeted state.")
 local bosses = {"npc_combinegunship", "npc_hunter", "npc_helicopter", "npc_strider", "a_shit_ton_of_enemies"}
-local ignore_list = {"npc_clawscanner", "npc_stalker", "npc_turret_floor", "npc_combinedropship", "npc_cscanner", "npc_turret_ceiling", "npc_combine_camera"}
+local ignore_list = {"npc_clawscanner", "npc_stalker", "npc_turret_floor", "npc_combinedropship", "npc_cscanner", "npc_turret_ceiling", "npc_combine_camera", "npc_crow", "npc_pigeon", "npc_seagull"}
 
 local recent_shots = {}
 
