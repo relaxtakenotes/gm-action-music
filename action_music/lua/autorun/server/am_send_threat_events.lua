@@ -59,6 +59,15 @@ end
 local function entities_see_each_other(ent1, ent2)
 	if not suspense:GetBool() then return true end
 
+	local tr = util.TraceLine({
+		start = ent1:GetShootPos(),
+		endpos = ent2:GetShootPos(),
+		filter = {ent1, ent2},
+		mask = MASK_VISIBLE_AND_NPCS
+	})
+
+	if tr.Fraction >= 0.99 then return true end
+
 	local ent1_points = get_entity_points(ent1)
 	local ent2_points = get_entity_points(ent2)
 
@@ -115,7 +124,9 @@ hook.Add("FinishMove", "am_threat_loop", function(ply, mv)
 
 	for _, npc in ipairs(ents.FindByClass("npc_*")) do
 		if table.HasValue(ignore_list, npc:GetClass()) then continue end
-		if not IsValid(npc) or not npc:IsNPC() or not npc.GetEnemy then continue end
+		if not IsValid(npc) or not npc:IsNPC() or not npc.GetEnemy then
+		 	continue 
+		end
 		local target = npc:GetEnemy()
 		if not target or not target:IsValid() then continue end
 
@@ -153,6 +164,8 @@ hook.Add("FinishMove", "am_threat_loop", function(ply, mv)
 		if not entities_see_each_other(enemy, ply) then
 			ply.am_hidden_from_enemies = ply.am_hidden_from_enemies + 1
 		end
+
+
 	end
 
 	if ply.am_enemy_amount > 0 then 
@@ -170,7 +183,7 @@ hook.Add("FinishMove", "am_threat_loop", function(ply, mv)
 		ply.am_boss_fight = true
 	end
 
-	if ply.am_enemy_amount <= ply.am_hidden_from_enemies then 
+	if ply.am_enemy_amount <= ply.am_hidden_from_enemies and ply.am_enemy_amount > 0 then 
 		ply.am_hidden_timer = (ply.am_hidden_timer or 0) + ply.am_timeout
 	else
 		ply.am_hidden_timer = 0
@@ -193,6 +206,7 @@ hook.Add("FinishMove", "am_threat_loop", function(ply, mv)
 	//print("-------------")
 
 	ply.am_should_stop = (ply:Health() <= 0)
+
 
 	if ply.am_is_targeted_prev != ply.am_is_targeted or ply.am_hidden_prev != ply.am_hidden or ply.am_boss_fight_prev != ply.am_boss_fight or ply.am_should_stop_prev != ply.am_should_stop then
 		net.Start("am_threat_event", true)
