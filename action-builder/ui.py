@@ -107,12 +107,24 @@ class dependency_resolver():
             return
         self.ffmpeg_status = "Installing."
         try:
-            urllib.request.urlretrieve("https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip", "ffmpeg.zip")
+            urllib.request.urlretrieve("https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2023-07-04-12-50/ffmpeg-N-111332-g9ff834c2a0-win64-gpl-shared.zip", "ffmpeg.zip")
             with zipfile.ZipFile("ffmpeg.zip", 'r') as zip_ref:
                 zip_ref.extractall(".")
             os.remove("ffmpeg.zip")
-            os.rename("ffmpeg-master-latest-win64-gpl/bin/ffmpeg.exe", "ffmpeg.exe")
-            shutil.rmtree("ffmpeg-master-latest-win64-gpl/")
+            os.rename("ffmpeg-N-111332-g9ff834c2a0-win64-gpl-shared/bin/ffmpeg.exe", "ffmpeg.exe")
+            os.rename("ffmpeg-N-111332-g9ff834c2a0-win64-gpl-shared/bin/ffplay.exe", "ffplay.exe")
+            os.rename("ffmpeg-N-111332-g9ff834c2a0-win64-gpl-shared/bin/ffprobe.exe", "ffprobe.exe")
+
+            os.rename("ffmpeg-N-111332-g9ff834c2a0-win64-gpl-shared/bin/avcodec-60.dll", "avcodec-60.dll")
+            os.rename("ffmpeg-N-111332-g9ff834c2a0-win64-gpl-shared/bin/avdevice-60.dll", "avdevice-60.dll")
+            os.rename("ffmpeg-N-111332-g9ff834c2a0-win64-gpl-shared/bin/avfilter-9.dll", "avfilter-9.dll")
+            os.rename("ffmpeg-N-111332-g9ff834c2a0-win64-gpl-shared/bin/avformat-60.dll", "avformat-60.dll")
+            os.rename("ffmpeg-N-111332-g9ff834c2a0-win64-gpl-shared/bin/avutil-58.dll", "avutil-58.dll")
+            os.rename("ffmpeg-N-111332-g9ff834c2a0-win64-gpl-shared/bin/postproc-57.dll", "postproc-57.dll")
+            os.rename("ffmpeg-N-111332-g9ff834c2a0-win64-gpl-shared/bin/swresample-4.dll", "swresample-4.dll")
+            os.rename("ffmpeg-N-111332-g9ff834c2a0-win64-gpl-shared/bin/swscale-7.dll", "swscale-7.dll")
+            
+            shutil.rmtree("ffmpeg-N-111332-g9ff834c2a0-win64-gpl-shared/")
         except Exception as e:
             self.ffmpeg_status = e
             return
@@ -165,6 +177,7 @@ class music_processor():
         for key, info in self.music_list.songs.items():
             if info["action"] == "unknown":
                 continue
+            name, _ = os.path.splitext(info["name"])
 
             audio = AudioSegment.from_file(key)
             if info["normalize"]:
@@ -173,7 +186,7 @@ class music_processor():
             if info["start"] > 0 and info["end"] == 0:
                 audio = audio[int(info["start"]*1000):len(audio)]
             if info["start"] == 0 and info["end"] > 0:
-                audio = audio[len(audio):int(info["end"]*1000)]
+                audio = audio[0:int(info["end"]*1000)]
             if info["start"] > 0 and info["end"] > 0:
                 audio = audio[int(info["start"]*1000):int(info["end"]*1000)]
 
@@ -182,15 +195,12 @@ class music_processor():
             if info["fade_end"]:
                 audio = audio.fade_out(int(info["fade_end"]*1000))
 
-            name, _ = os.path.splitext(info["name"])
-            audio.export(f'output/{pack_name}/sound/am_music/{info["action"]}/{name}.ogg', format="ogg")
+            audio.export(f'output/{pack_name}/sound/am_music/{info["action"]}/{name}.ogg', format="ogg", codec="libvorbis")
 
             self.progress_curr += 1
-
     def process(self, pack_name):
         process_thread = Thread(target=self._process, args=(pack_name,), daemon=True)
         process_thread.start()
-
 
 class music_player():
     def __init__(self, path):
@@ -514,7 +524,7 @@ class gui():
         if imgui.begin_popup_modal("reset-current", True, flags=self.window_flags)[0]:
             imgui.text("Are you sure?")
             if imgui.button("Yes!"):
-                self.current_settings = {"action": "unknown", "start": 0, "end": 0, "name": self.current_file.split("\\")[-1], "normalize": False}
+                self.current_settings = {"action": "unknown", "start": 0, "end": 0, "fade_start": 0, "fade_end": 0, "name": self.current_file.split("\\")[-1], "normalize": False}
                 self.music_list.songs[self.current_file] = self.current_settings
                 imgui.close_current_popup()
             imgui.same_line()

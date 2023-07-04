@@ -19,7 +19,7 @@ try:
     print("Compressing binaries...")
     for path in Path('build\\exe.win-amd64-3.11\\').rglob('*.dll'):
         print(f"upx --best \"{os.path.abspath(path)}\"")
-        subprocess.run(f"upx --best \"{os.path.abspath(path)}\" --force")
+        subprocess.run(f"upx --best \"{os.path.abspath(path)}\"")
 
     print("Packaging...")
     if os.path.isfile("release.7z"):
