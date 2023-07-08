@@ -140,18 +140,13 @@ local function initialize_songs()
 	amready = true
 end
 
-concommand.Add("cl_am_verify_songs", function() 
-	local failed = {}
-
+concommand.Add("cl_am_verify_songs", function()
 	for key, content in pairs(songs) do
 		for _, song in ipairs(content) do
 			sound.PlayFile(song.path, "noblock", function(station, error_code, error_string)
-				local split_str = string.Split(song.path, "/")
-				local name = string.StripExtension(split_str[#split_str])
-	
 				if error_code or error_string then
 					print("---------------")
-					print(song.path.." | "..error_code.." | "..error_string)
+					print(song.path .. " | " .. error_code .. " | " .. error_string)
 					print("---------------")
 				end
 
@@ -170,9 +165,9 @@ local function fade_channel(channel, to)
 	local lerp_t = 0
 
 	timer_name_counter = timer_name_counter + 1
-	local timer_name = "fade_timer"..timer_name_counter
+	local timer_name = "fade_timer" .. timer_name_counter
 
-	timer.Create(timer_name, 0, math.huge, function() 
+	timer.Create(timer_name, 0, math.huge, function()
 		if not IsValid(channel) then return end
 
 		lerp_t = math.min(1, lerp_t + fade_time:GetFloat() * FrameTime())
@@ -191,7 +186,6 @@ local function am_play(typee, delay, force)
 	if not amready then return end
 	if channel_locked then return end
 	if typee == "suspense" and chosen_songs[typee] == nil or chosen_songs[typee] == NULL then
-		//print("no suspense songs, switching to battle")
 		typee = "battle"
 	end
 	if not am_enabled[typee]:GetBool() then
