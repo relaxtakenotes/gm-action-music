@@ -20,7 +20,7 @@ local fade_time = CreateConVar("cl_am_fadetime_mult", "0.5", FCVAR_ARCHIVE, "How
 local continue_songs = CreateConVar("cl_am_continue_songs", "1", FCVAR_ARCHIVE, "Continue songs where we left off.")
 local reset_last_duration = CreateConVar("cl_am_reshuffle_period", "60", FCVAR_ARCHIVE, "Shuffle some songs in a given period. (0 is disabled)")
 local force_type = CreateConVar("cl_am_force_type", "0", FCVAR_ARCHIVE, "If you got some RP scenario where you want only one type of music playing you can change this. 0 - Disabled. 1 - Background. 2 - Battle. 3 - Intense Battle (Boss Battle). 4 - Suspense")
-local type_song = CreateConVar("cl_am_chat_print", "0", FCVAR_ARCHIVE, "Print music change to chat.")
+local notify = CreateConVar("cl_am_notify", "0", FCVAR_ARCHIVE, "Notifications!")
 
 local am_enabled_global = CreateConVar("cl_am_enabled_global", "1", FCVAR_ARCHIVE, "Obvious!")
 cvars.AddChangeCallback("cl_am_enabled_global", function(convar_name, value_old, value_new)
@@ -158,7 +158,6 @@ concommand.Add("cl_am_verify_songs", function()
 	end
 end)
 
-
 local function fade_channel(channel, to)
 	if not am_enabled_global:GetBool() then return end
 	local from = channel:GetVolume()
@@ -181,48 +180,71 @@ local function fade_channel(channel, to)
 	end)
 end
 
+local function am_spaghetti_stop()
+	if IsValid(am_current_channel) and am_current_song and am_current_song.typee and am_current_song.index then
+		pcall(function() 
+			songs[am_current_song.typee][am_current_song.index].last_duration = am_current_channel:GetTime()
+		end)
+		pcall(function() 
+			past_channel = am_current_channel
+			fade_channel(past_channel, 0)
+		end)
+		am_current_song = nil
+	end
+end
+
+local last_message = "" // to prevent needless spamming
+local function am_notify(message)
+	if not notify:GetBool() then return end
+	if message == last_message then return end
+
+	chat.AddText(Color(50, 50, 255), "[Action Music] ", Color(255, 255, 255), message)
+end
+
+local force_type_array = {"background", "battle", "battle_intensive", "suspense"}
+
 local function am_play(typee, delay, force)
 	if not am_enabled_global:GetBool() then return end
 	if not amready then return end
 	if channel_locked then return end
-	if typee == "suspense" and chosen_songs[typee] == nil or chosen_songs[typee] == NULL then
+	if typee == "suspense" and not chosen_songs["suspense"] then
 		typee = "battle"
 	end
+
+	if force_type:GetInt() > 0 then typee = force_type_array[force_type:GetInt()] end
+
 	if not am_enabled[typee]:GetBool() then
 		if typee == "background" then
+			am_spaghetti_stop()
 			return
 		end
 
 		if typee == "battle" and am_enabled["background"]:GetBool() then 
 			typee = "background"
 		end
-		if typee == "battle" and not am_enabled["background"]:GetBool() then 
+		if typee == "battle" and not am_enabled["background"]:GetBool() then
+			am_spaghetti_stop()
 			return
 		end
-
+		
 		if typee == "battle_intensive" and am_enabled["battle"]:GetBool() then 
 			typee = "battle"
 		end
 		if typee == "battle_intensive" and not am_enabled["battle"]:GetBool() then
 			typee = "background" 
 		end
-
+		
 		if typee == "suspense" and am_enabled["battle"]:GetBool() then
 			typee = "battle"
 		end
 		if typee == "suspense" and not am_enabled["battle"]:GetBool() then
-			typee = "background" 
+			typee = "background"
 		end
 	end
-	if force_type:GetInt() == 1 then typee = "background" end
-	if force_type:GetInt() == 2 then typee = "battle" end
-	if force_type:GetInt() == 3 then typee = "battle_intensive" end
-	if force_type:GetInt() == 4 then typee = "suspense" end
-	if last_type == typee and not force then return end
 
 	if chosen_songs[typee] == nil or chosen_songs[typee] == NULL then
-		chat.AddText(Color(50, 50, 255), "[Action Music] ", Color(255, 255, 255), "There are no songs of type ", typee, ". Please include something in it!")
-		return 
+		am_notify("There are no songs of type "..typee..". Please include something in it!")
+		return
 	end
 
 	channel_locked = true
@@ -232,15 +254,9 @@ local function am_play(typee, delay, force)
 		if not continue_songs:GetBool() then song = songs[typee][math.random(#songs[typee])] end
 		if song == nil then return end
 
-		if IsValid(am_current_channel) and am_current_song and am_current_song.typee and am_current_song.index then
-			pcall(function() 
-				songs[am_current_song.typee][am_current_song.index].last_duration = am_current_channel:GetTime()
-			end)
-			pcall(function() 
-				past_channel = am_current_channel
-				fade_channel(past_channel, 0)
-			end)
-		end
+		if am_current_song and am_current_song.path == song.path then return end
+
+		am_spaghetti_stop()
 
 		am_current_song = song
 
@@ -254,16 +270,14 @@ local function am_play(typee, delay, force)
 			local split_str = string.Split(song.path, "/")
 			local name = string.StripExtension(split_str[#split_str])
 
-			if type_song:GetBool() then
-				local matched = string.match(name, "_%d%d_%d%d_%d%d_%d%d_")
-				if matched then
-					name = string.Replace(name, matched, "")
-				end
-				chat.AddText(Color(50, 50, 255), "[Action Music] ", Color(255, 255, 255), "Now playing: ", name)
+			local matched = string.match(name, "_%d%d_%d%d_%d%d_%d%d_")
+			if matched then
+				name = string.Replace(name, matched, "")
 			end
+			am_notify("Now playing: "..name)
 
 			if not station then 
-				chat.AddText(Color(50, 50, 255), "[Action Music] ", Color(255, 50, 50), "Failed playing: ", name, "\n\t\t\tError Code: ", error_code, "\n\t\t\tError: ", error_string, "\n\t\t\tUsually any error can be resolved by making sure your title has no unicode characters. If you can't find any, simplify it.")
+				am_notify("Failed to play: "..name.."\n\t\t\tError Code: "..error_code.."\n\t\t\tError: "..error_string.."\n\t\t\tUsually any error can be resolved by making sure your title has no unicode characters. If you can't find any, simplify it.")
 				return 
 			end
 
@@ -276,8 +290,6 @@ local function am_play(typee, delay, force)
 			fade_channel(am_current_channel, volume_scale[typee]:GetFloat())
 		end)
 	end)
-
-	last_type = typee
 end
 
 
@@ -291,28 +303,29 @@ net.Receive("am_threat_event", function()
 	local should_stop = net.ReadBool()
 
 	if should_stop then
-		if IsValid(am_current_channel) then
-			past_channel = am_current_channel
-			songs[am_current_song.typee][am_current_song.index].last_duration = past_channel:GetTime()
-			fade_channel(past_channel, 0)
-		end
+		last_type = nil
+		am_spaghetti_stop()
 		return
 	end
-
+	
 	if is_targeted then
 		if hidden then 
-			am_play("suspense", 0, false)
+			typee = "suspense"
 		else
 			if boss_fight then 
-				am_play("battle_intensive", 0, false)
+				typee = "battle_intensive"
 			else
-				am_play("battle", 0, false)
+				typee = "battle"
 			end
 		end
 	else
-		am_play("background", 2, false)
+		typee = "background"
 	end
+	
+	if last_type == typee then return end
+	last_type = typee
 
+	am_play(typee, 0, false)
 end)
 
 hook.Add("Think", "am_think", function()
@@ -355,7 +368,7 @@ concommand.Add("cl_am_reshuffle", function(ply, cmd, args)
 	if not amready then return end
 
 	shuffle_chosen_songs()
-	chat.AddText(Color(50, 50, 255), "[Action Music] ", Color(255, 255, 255), "Reshuffled!")
+	am_notify("Reshuffled!")
 
 	if not IsValid(am_current_channel) then return end
 	am_current_channel:Stop()

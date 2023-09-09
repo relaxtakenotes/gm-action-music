@@ -94,7 +94,6 @@ end
 hook.Add("FinishMove", "am_threat_loop", function(ply, mv)
 	if ply.am_timeout and ply.am_timeout > 0 then
 		ply.am_timeout = math.max(ply.am_timeout - FrameTime(), 0)
-
 		return
 	end
 
@@ -110,13 +109,17 @@ hook.Add("FinishMove", "am_threat_loop", function(ply, mv)
 	ply.am_hidden_from_enemies = 0
 	ply.am_should_stop_prev = ply.am_should_stop
 	ply.am_should_stop = false
+
 	local ignore_bossfight_flag = false
+	local overall_enemy_count = 0
 
 	for _, npc in ipairs(ents.FindByClass("npc_*")) do
 		if table.HasValue(ignore_list, npc:GetClass()) then continue end
 		if not IsValid(npc) or not npc:IsNPC() or not npc.GetEnemy then continue end --print(IsValid(npc), npc:IsNPC(), npc.GetEnemy, " --- ", npc)
 		local target = npc:GetEnemy()
 		if not target or not target:IsValid() then continue end
+
+		overall_enemy_count = overall_enemy_count + 1
 
 		if target == ply or targeted_teammate_is_near(target, ply) or enemy_is_alerted_and_close(npc, ply) then
 			ply.am_active_enemies[npc] = true
@@ -160,8 +163,11 @@ hook.Add("FinishMove", "am_threat_loop", function(ply, mv)
 		ply.am_is_targeted = true
 	elseif ply.am_is_targeted then
 		ply.am_targeted_timer = (ply.am_targeted_timer or 0) + ply.am_timeout
-
-		if ply.am_targeted_timer > targeted_time:GetFloat() then
+		local mult = 1
+		if overall_enemy_count <= 0 then
+			mult = 0.2
+		end
+		if ply.am_targeted_timer > targeted_time:GetFloat() * mult then
 			ply.am_is_targeted = false
 			ply.am_boss_fight = false
 			ply.am_targeted_timer = 0
@@ -178,13 +184,15 @@ hook.Add("FinishMove", "am_threat_loop", function(ply, mv)
 		ply.am_hidden_timer = 0
 	end
 
-	if ply.am_hidden_timer > hidden_time:GetFloat() then
-		ply.am_hidden = true
-	else
-		ply.am_hidden = false
-	end
+	ply.am_hidden = ply.am_hidden_timer > hidden_time:GetFloat()
 
 	ply.am_should_stop = ply:Health() <= 0
+
+	if ply.am_should_stop then
+		ply.am_is_targeted = false
+		ply.am_boss_fight = false
+		ply.am_targeted_timer = 0
+	end
 
 	net.Start("am_threat_event", true)
 	net.WriteBool(ply.am_is_targeted)
