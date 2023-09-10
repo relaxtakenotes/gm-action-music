@@ -252,9 +252,15 @@ local function am_play(typee, delay, force)
 	timer.Simple(delay, function()
 		local song = chosen_songs[typee]
 		if not continue_songs:GetBool() then song = songs[typee][math.random(#songs[typee])] end
-		if song == nil then return end
+		if song == nil then
+			channel_locked = false
+			return 
+		end
 
-		if am_current_song and am_current_song.path == song.path then return end
+		if am_current_song and am_current_song.path == song.path then
+			channel_locked = false
+			return 
+		end
 
 		am_spaghetti_stop()
 
@@ -276,7 +282,7 @@ local function am_play(typee, delay, force)
 			end
 			am_notify("Now playing: "..name)
 
-			if not station then 
+			if not station then
 				am_notify("Failed to play: "..name.."\n\t\t\tError Code: "..error_code.."\n\t\t\tError: "..error_string.."\n\t\t\tUsually any error can be resolved by making sure your title has no unicode characters. If you can't find any, simplify it.")
 				return 
 			end

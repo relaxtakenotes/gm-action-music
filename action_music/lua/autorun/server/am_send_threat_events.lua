@@ -7,6 +7,7 @@ local pvp_time = CreateConVar("sv_am_pvp_time", "45", FCVAR_ARCHIVE, "For how lo
 local suspense = CreateConVar("sv_am_send_suspense", "1", FCVAR_ARCHIVE, "Allow clients to use the suspense state")
 local hidden_time = CreateConVar("sv_am_hidden_time", "25", FCVAR_ARCHIVE, "After how long to consider a player hidden once he's out of enemy visibility.")
 local targeted_time = CreateConVar("sv_am_targeted_timer", "5", FCVAR_ARCHIVE, "How fast to switch off from the targeted state.")
+local expensive_vis = CreateConVar("sv_am_expensive_hidden_checks", "0", FCVAR_ARCHIVE, "Run a shitton of vischecks to determine the hidden state.")
 
 local bosses = {"npc_combinegunship", "npc_hunter", "npc_helicopter", "npc_strider", "a_shit_ton_of_enemies"}
 
@@ -63,6 +64,9 @@ local function entities_see_each_other(ent1, ent2)
 	})
 
 	if tr.Fraction >= 0.99 then return true end
+
+	if not expensive_vis:GetBool() then return false end
+
 	local ent1_points = get_entity_points(ent1)
 	local ent2_points = get_entity_points(ent2)
 
@@ -243,4 +247,22 @@ hook.Add("EntityFireBullets", "am_detect_action", function(attacker, data)
 		ignore = {},
 		targeted = f_targetted
 	})
+end)
+
+concommand.Add("sv_am_ambient_enable", function(ply, cmd, args)
+	for i, ent in ipairs(ents.GetAll()) do
+		if not IsValid(ent) then continue end
+		if ent:GetClass() != "ambient_generic" then continue end
+
+		ent:SetKeyValue("health", "10")
+	end
+end)
+
+concommand.Add("sv_am_ambient_disable", function(ply, cmd, args)
+	for i, ent in ipairs(ents.GetAll()) do
+		if not IsValid(ent) then continue end
+		if ent:GetClass() != "ambient_generic" then continue end
+
+		ent:SetKeyValue("health", "0")
+	end
 end)
