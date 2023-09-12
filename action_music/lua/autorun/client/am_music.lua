@@ -298,6 +298,18 @@ local function am_play(typee, delay, force)
 	end)
 end
 
+cvars.AddChangeCallback(force_type:GetName(), function()
+	if not am_enabled_global:GetBool() then return end
+	if not amready then return end
+
+	last_type = nil // let the networked stuff take over when we're done
+	am_spaghetti_stop()
+
+	if force_type:GetInt() <= 0 then return end
+	local typee = force_type_array[force_type:GetInt()]
+
+	am_play(typee, 0, false)
+end)
 
 net.Receive("am_threat_event", function()
 	if not am_enabled_global:GetBool() then return end

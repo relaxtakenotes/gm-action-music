@@ -8,6 +8,7 @@ local suspense = CreateConVar("sv_am_send_suspense", "1", FCVAR_ARCHIVE, "Allow 
 local hidden_time = CreateConVar("sv_am_hidden_time", "25", FCVAR_ARCHIVE, "After how long to consider a player hidden once he's out of enemy visibility.")
 local targeted_time = CreateConVar("sv_am_targeted_timer", "5", FCVAR_ARCHIVE, "How fast to switch off from the targeted state.")
 local expensive_vis = CreateConVar("sv_am_expensive_hidden_checks", "0", FCVAR_ARCHIVE, "Run a shitton of vischecks to determine the hidden state.")
+local ignore_noncombatans = CreateConVar("sv_am_ignore_noncombatans", "1", FCVAR_ARCHIVE, "Ignore NPC's that are hostile to you in some way but don't have a weapon.")
 
 local bosses = {"npc_combinegunship", "npc_hunter", "npc_helicopter", "npc_strider", "a_shit_ton_of_enemies"}
 
@@ -96,8 +97,10 @@ local function entities_see_each_other(ent1, ent2)
 end
 
 hook.Add("FinishMove", "am_threat_loop", function(ply, mv)
+	if engine.TickCount() % 2 == 0 then return end
+
 	if ply.am_timeout and ply.am_timeout > 0 then
-		ply.am_timeout = math.max(ply.am_timeout - FrameTime(), 0)
+		ply.am_timeout = math.max(ply.am_timeout - FrameTime() * 2, 0) // frametime*2 cuz we're skipping half the ticks
 		return
 	end
 
@@ -122,6 +125,8 @@ hook.Add("FinishMove", "am_threat_loop", function(ply, mv)
 		if not IsValid(npc) or not npc:IsNPC() or not npc.GetEnemy then continue end --print(IsValid(npc), npc:IsNPC(), npc.GetEnemy, " --- ", npc)
 		local target = npc:GetEnemy()
 		if not target or not target:IsValid() then continue end
+
+		if ignore_noncombatans:GetBool() and isfunction(npc.GetActiveWeapon) and npc:GetActiveWeapon() == NULL then continue end
 
 		overall_enemy_count = overall_enemy_count + 1
 
