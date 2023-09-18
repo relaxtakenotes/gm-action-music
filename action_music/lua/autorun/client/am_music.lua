@@ -117,13 +117,6 @@ local function parse_dynamo(dirr)
 	end
 end
 
-local function shuffle_chosen_songs()
-	for key, item in pairs(chosen_songs) do
-		if not songs[key] then continue end
-		chosen_songs[key] = songs[key][math.random(#songs[key])]
-	end
-end
-
 local function initialize_songs()
 	songs["battle"] = {}
 	songs["battle_intensive"] = {}
@@ -135,7 +128,10 @@ local function initialize_songs()
 	parse_dynamo("battlemusic")
 	parse_dynamo("ayykyu_dynmus")
 
-	shuffle_chosen_songs()
+	for key, item in pairs(chosen_songs) do
+		if not songs[key] then continue end
+		chosen_songs[key] = songs[key][math.random(#songs[key])]
+	end
 
 	amready = true
 end
@@ -369,7 +365,11 @@ hook.Add("Think", "am_think_forget", function()
 	if not reset_last_duration:GetBool() then return end
 	if CurTime() - last_forget_time > reset_last_duration:GetInt() then
 		last_forget_time = CurTime()
-		shuffle_chosen_songs()
+		for key, item in pairs(chosen_songs) do
+			if not songs[key] then continue end
+			if am_current_song and am_current_song.typee == key then continue end
+			chosen_songs[key] = songs[key][math.random(#songs[key])]
+		end
 	end
 end)
 
@@ -385,7 +385,11 @@ concommand.Add("cl_am_reshuffle", function(ply, cmd, args)
 	if not am_enabled_global:GetBool() then return end
 	if not amready then return end
 
-	shuffle_chosen_songs()
+	for key, item in pairs(chosen_songs) do
+		if not songs[key] then continue end
+		chosen_songs[key] = songs[key][math.random(#songs[key])]
+	end
+
 	am_notify("Reshuffled!")
 
 	if not IsValid(am_current_channel) then return end
