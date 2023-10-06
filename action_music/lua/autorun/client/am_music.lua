@@ -351,12 +351,10 @@ hook.Add("Think", "am_think", function()
 	local state = 0
 	if IsValid(am_current_channel) then state = am_current_channel:GetState() end
 
-	if LocalPlayer():Health() <= 0 then return end 
-
 	if state == 0 or (IsValid(am_current_channel) and am_current_song.ending != nil and am_current_channel:GetTime() >= am_current_song.ending) then
 		am_current_song.last_duration = 0
 		chosen_songs[am_current_song.typee] = songs[am_current_song.typee][math.random(#songs[am_current_song.typee])]
-		am_play(am_current_song.typee, 0, true)
+		if LocalPlayer():Health() > 0 then am_play(am_current_song.typee, 0, true) end 
 	end
 end)
 
