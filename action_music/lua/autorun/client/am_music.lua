@@ -28,6 +28,7 @@ end)
 local am_enabled = {}
 local volume_scale = {}
 
+
 for _, typee in ipairs({"battle", "background", "battle_intensive", "suspense"}) do
     volume_scale[typee] = CreateConVar("cl_am_volume_" .. typee, "1", FCVAR_ARCHIVE, "Volume. Epic.")
     am_enabled[typee] = CreateConVar("cl_am_enabled_" .. typee, "1", FCVAR_ARCHIVE, "Obvious!")
@@ -52,6 +53,13 @@ for _, typee in ipairs({"battle", "background", "battle_intensive", "suspense"})
             am_current_channel:Stop()
         end
     end)
+end
+
+local stroffset = 0
+
+local function screen_text(text)
+    stroffset = stroffset + 0.02
+    debugoverlay.ScreenText(0.05, 0.6 + stroffset, text, FrameTime(), Color(255, 231, 152))
 end
 
 local function parse_am()
@@ -103,8 +111,9 @@ local function parse_nombat()
             table.insert(songs[song.typee], song)
 
             if song.typee == "battle" then
-                song.typee = "battle_intensive"
-                table.insert(songs[song.typee], song)
+                local song_copy = table.Copy(song)
+                song_copy.typee = "battle_intensive"
+                table.insert(songs[song_copy.typee], song_copy)
             end
         end
     end
@@ -232,13 +241,13 @@ local function am_play(typee, delay, force)
     if not am_enabled_global:GetBool() then return end
     if not amready then return end
     if channel_locked then return end
+    
+    if force_type:GetInt() > 0 then
+        typee = force_type_array[force_type:GetInt()]
+    end
 
     if typee == "suspense" and not chosen_songs["suspense"] then
         typee = "battle"
-    end
-
-    if force_type:GetInt() > 0 then
-        typee = force_type_array[force_type:GetInt()]
     end
 
     if not am_enabled[typee]:GetBool() then
@@ -390,6 +399,27 @@ net.Receive("am_threat_event", function()
 end)
 
 hook.Add("Think", "am_think", function()
+    if GetConVar("developer"):GetBool() and am_current_song then
+        screen_text(
+            table.ToString(am_current_song, "am_current_song", true)
+        )
+        screen_text(tostring(am_current_channel))
+        screen_text("channel_locked: "..tostring(channel_locked))
+        if chosen_songs["battle"] then
+            screen_text("battle :"..table.ToString(chosen_songs["battle"]))
+        end
+        if chosen_songs["battle_intensive"] then
+            screen_text("battle_intensive :"..table.ToString(chosen_songs["battle_intensive"]))
+        end
+        if chosen_songs["background"] then
+            screen_text("background :"..table.ToString(chosen_songs["background"]))
+        end
+        if chosen_songs["suspense"] then
+           screen_text("suspense :"..table.ToString(chosen_songs["suspense"]))
+        end
+        stroffset = 0
+    end
+    
     if not am_enabled_global:GetBool() then return end
     if not amready then return end
     if not am_current_song then return end
@@ -408,6 +438,7 @@ hook.Add("Think", "am_think", function()
             am_play(am_current_song.typee, 0, true)
         end
     end
+
 end)
 
 hook.Add("Think", "am_think_forget", function()

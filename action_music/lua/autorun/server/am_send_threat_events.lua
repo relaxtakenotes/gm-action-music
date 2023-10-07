@@ -40,12 +40,7 @@ local stroffset = 0
 
 local function screen_text(text)
     stroffset = stroffset + 0.02
-
-    timer.Simple(1, function()
-        stroffset = stroffset - 0.02
-    end)
-
-    debugoverlay.ScreenText(0.05, 0.1 + stroffset, text, 1.25, Color(255, 255, 255))
+    debugoverlay.ScreenText(0.05, 0.1 + stroffset, text, 1 + engine.TickInterval() * 4, Color(156, 219, 255))
 end
 
 local function npc_can_attack(npc)
@@ -220,16 +215,20 @@ hook.Add("FinishMove", "am_threat_loop", function(ply, mv)
         ply.am_targeted_timer = 0
     end
 
-    --screen_text("am_timeout: "..tostring(ply.am_timeout))
-    --screen_text("am_active_enemies: "..table.ToString(ply.am_active_enemies))
-    --screen_text("am_is_targeted_prev: "..tostring(ply.am_is_targeted_prev))
-    --screen_text("am_hidden_prev: "..tostring(ply.am_hidden_prev))
-    --screen_text("am_boss_fight_prev: "..tostring(ply.am_boss_fight_prev))
-    --screen_text("am_hidden: "..tostring(ply.am_hidden))
-    --screen_text("am_enemy_amount: "..tostring(ply.am_enemy_amount))
-    --screen_text("am_hidden_from_enemies: "..tostring(ply.am_hidden_from_enemies))
-    --screen_text("am_should_stop_prev: "..tostring(ply.am_should_stop_prev))
-    --screen_text("am_should_stop: "..tostring(ply.am_should_stop))
+    if GetConVar("developer"):GetBool() then
+        screen_text("am_timeout: "..tostring(ply.am_timeout))
+        screen_text("am_active_enemies: "..table.ToString(ply.am_active_enemies))
+        screen_text("am_is_targeted_prev: "..tostring(ply.am_is_targeted_prev))
+        screen_text("am_hidden_prev: "..tostring(ply.am_hidden_prev))
+        screen_text("am_boss_fight_prev: "..tostring(ply.am_boss_fight_prev))
+        screen_text("am_hidden: "..tostring(ply.am_hidden))
+        screen_text("am_enemy_amount: "..tostring(ply.am_enemy_amount))
+        screen_text("am_hidden_from_enemies: "..tostring(ply.am_hidden_from_enemies))
+        screen_text("am_should_stop_prev: "..tostring(ply.am_should_stop_prev))
+        screen_text("am_should_stop: "..tostring(ply.am_should_stop))
+        stroffset = 0
+    end
+    
     net.Start("am_threat_event", false)
     net.WriteBool(ply.am_is_targeted)
     net.WriteBool(ply.am_hidden)
