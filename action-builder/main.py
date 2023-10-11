@@ -13,9 +13,25 @@ from imgui.integrations.sdl2 import SDL2Renderer
 from ui import gui
 import traceback
 
+import win32gui, win32con
+
 width, height = 720, 850
 
+done = False
+
+def win_enum_handler(hwnd, ctx):
+    global done
+    if done:
+        return
+    if win32gui.IsWindowVisible(hwnd):
+        text = win32gui.GetWindowText(hwnd)
+        if "Action Builder" in text:
+            win32gui.ShowWindow(hwnd, win32con.SW_HIDE)
+            done = True
+
 def main():
+    win32gui.EnumWindows(win_enum_handler, None)
+    
     c_ui = None
     try:
         c_ui = gui()
@@ -53,7 +69,6 @@ def main():
                     break
                 impl.process_event(event)
             impl.process_inputs()
-
 
             imgui.new_frame()
 

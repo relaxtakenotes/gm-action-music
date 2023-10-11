@@ -20,6 +20,8 @@ try:
     for path in Path('build\\exe.win-amd64-3.11\\').rglob('*.dll'):
         print(f"upx --best \"{os.path.abspath(path)}\"")
         subprocess.run(f"upx --best \"{os.path.abspath(path)}\"")
+    
+    os.rename('build\\exe.win-amd64-3.11\\main.exe', 'build\\exe.win-amd64-3.11\\Action Builder.exe')
 
     print("Packaging...")
     if os.path.isfile("release.7z"):

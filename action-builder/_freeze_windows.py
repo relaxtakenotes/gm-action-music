@@ -14,6 +14,6 @@ setup(
     version="1.0",
     description="Action Music Pack Builder",
     options={"build_exe": build_exe_options},
-    executables=[Executable("main.py", base=base)],
+    executables=[Executable("main.py")],
 )
 

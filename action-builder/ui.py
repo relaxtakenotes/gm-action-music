@@ -156,6 +156,7 @@ class music_processor():
         self.music_list = music_list
         self.progress_curr = 0
         self.progress_max = 0
+        self.cancel = False
 
     def _process(self, pack_name):
         self.progress_max = 0
@@ -175,13 +176,15 @@ class music_processor():
         except FileExistsError:
             pass
         for key, info in self.music_list.songs.items():
+            if self.cancel:
+                return
             if info["action"] == "unknown":
                 continue
             name, _ = os.path.splitext(info["name"])
 
             audio = AudioSegment.from_file(key)
             if info["normalize"]:
-                audio = effects.normalize(audio)
+                audio = effects.normalize(audio, 2)
 
             if info["start"] > 0 and info["end"] == 0:
                 audio = audio[int(info["start"]*1000):len(audio)]
@@ -198,6 +201,7 @@ class music_processor():
             audio.export(f'output/{pack_name}/sound/am_music/{info["action"]}/{name}.ogg', format="ogg", codec="libvorbis")
 
             self.progress_curr += 1
+
     def process(self, pack_name):
         process_thread = Thread(target=self._process, args=(pack_name,), daemon=True)
         process_thread.start()
@@ -347,10 +351,19 @@ class gui():
         self.mass_rename_replace = ""
 
         self.mass_cfg_start = 0
+        self.mass_cfg_start_change = False
+
         self.mass_cfg_end = 0
+        self.mass_cfg_end_change = False
+        
         self.mass_cfg_normalize = False
+        self.mass_cfg_normalize_change = False
+
         self.mass_cfg_fade_start = 0
+        self.mass_cfg_fade_start_change = False
+
         self.mass_cfg_fade_end = 0
+        self.mass_cfg_fade_end_change = False
 
         self.restore_last_session()
 
@@ -482,28 +495,55 @@ class gui():
             imgui.text("You can mass configure certain options in here.")
             imgui.pop_item_width()
 
+            imgui.push_id("mcsc")
+            _, self.mass_cfg_start_change = imgui.checkbox("", self.mass_cfg_start_change)
+            imgui.same_line()
             _, self.mass_cfg_start = imgui.input_float('Start', self.mass_cfg_start)
+            imgui.pop_id()
+
+            imgui.push_id("msec")
+            _, self.mass_cfg_end_change = imgui.checkbox("", self.mass_cfg_end_change)
+            imgui.same_line()
             _, self.mass_cfg_end = imgui.input_float('End', self.mass_cfg_end)
+            imgui.pop_id()
+
+            imgui.push_id("mcns")
+            _, self.mass_cfg_normalize_change = imgui.checkbox("", self.mass_cfg_normalize_change)
+            imgui.same_line()
             _, self.mass_cfg_normalize = imgui.checkbox("Normalize", self.mass_cfg_normalize)
+            imgui.pop_id()
+
+            imgui.push_id("mcfs")
+            _, self.mass_cfg_fade_start_change = imgui.checkbox("", self.mass_cfg_fade_start_change)
+            imgui.same_line()
             _, self.mass_cfg_fade_start = imgui.input_float('Fade Start', self.mass_cfg_fade_start)
+            imgui.pop_id()
+            
+            imgui.push_id("mcfe")
+            _, self.mass_cfg_fade_end_change = imgui.checkbox("", self.mass_cfg_fade_end_change)
+            imgui.same_line()
             _, self.mass_cfg_fade_end = imgui.input_float('Fade End', self.mass_cfg_fade_end)
+            imgui.pop_id()
 
             if imgui.button("Quit"):
                 imgui.close_current_popup()
+            
             imgui.same_line()
             if imgui.button("Execute"):
                 self.music = None
                 self.current_file = ""
                 self.current_settings = {}
                 for file, info in self.music_list.songs.items():
-                    self.music_list.songs[file] = {"action": info["action"],
-                                                   "start": self.mass_cfg_start,
-                                                   "end": self.mass_cfg_end,
-                                                   "normalize": self.mass_cfg_normalize,
-                                                   "name": info["name"],
-                                                   "fade_start": self.mass_cfg_fade_start,
-                                                   "fade_end": self.mass_cfg_fade_end
-                                                  }
+                    if self.mass_cfg_start_change:
+                        self.music_list.songs[file]["start"] = self.mass_cfg_start
+                    if self.mass_cfg_end_change:
+                        self.music_list.songs[file]["end"] = self.mass_cfg_end
+                    if self.mass_cfg_normalize_change:
+                        self.music_list.songs[file]["normalize"] = self.mass_cfg_normalize
+                    if self.mass_cfg_fade_start_change:
+                        self.music_list.songs[file]["fade_start"] = self.mass_cfg_fade_start
+                    if self.mass_cfg_fade_end_change:
+                        self.music_list.songs[file]["fade_end"] = self.mass_cfg_fade_end
 
             imgui.end_popup()
 
@@ -733,6 +773,7 @@ class gui():
     def draw_footer(self):
         imgui.begin_child("footer", 0, 38, border=True)
         if imgui.button("Apply"):
+            self.processor.cancel = False
             self.processor.process(self.pack_name)
             imgui.open_popup("processor-progress")
         if imgui.begin_popup_modal("processor-progress", True, flags=self.window_flags)[0]:
@@ -743,8 +784,8 @@ class gui():
             imgui.text(_text)
             imgui.text(f"Processed {self.processor.progress_curr} out of {self.processor.progress_max}      ")
             if imgui.button("Exit"):
-                if processing_done:
-                    imgui.close_current_popup()
+                self.processor.cancel = True
+                imgui.close_current_popup()
             imgui.end_popup()
         imgui.end_child()
 
