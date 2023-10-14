@@ -41,6 +41,9 @@ class khinsider_downloader():
         self.started = False
         self.status = "Idle..."
 
+        self.target = 0
+        self.progress = 0
+
     def _download(self, url):
         self.done = False
         self.started = True
@@ -55,66 +58,99 @@ class khinsider_downloader():
             processed_hrefs = {}
             direct_urls = []
 
-            for i_match in re.findall(r"<td class=\"clickable-row\" align=\"right\"><a href=\"\/game-soundtracks\/album\/.*\" style=\"font-weight:normal;\">.*<\/a><\/td>", album_page):
-                indirect_url = re.search(r"\"\/game-soundtracks\/album\/.*\/.*\.mp3\"", i_match)[0]
+            matches = re.findall(r"<td class=\"clickable-row\" align=\"right\"><a href=\"\/game-soundtracks\/album\/.*\" style=\"font-weight:normal;\">.*<\/a><\/td>", album_page)
 
-                if not indirect_url:
-                    self.status = "[Parsing] Couldn't find an indirect url."
-                    continue
+            def parse_direct_urls(matches):
+                for i_match in matches:
+                    indirect_url = re.search(r"\"\/game-soundtracks\/album\/.*\/.*\.mp3\"", i_match)[0]
 
-                indirect_url = indirect_url[1:-1]
+                    if not indirect_url:
+                        self.status = "[Parsing] Couldn't find an indirect url."
+                        continue
 
-                if processed_hrefs.get(indirect_url):
-                    continue
+                    indirect_url = indirect_url[1:-1]
 
-                processed_hrefs[indirect_url] = True
+                    if processed_hrefs.get(indirect_url):
+                        continue
 
-                sleep(0.25)
+                    processed_hrefs[indirect_url] = True
 
-                try:
-                    download_page = urlopen(j_base + indirect_url).read().decode()
-                except Exception:
-                    self.status = f"[Parsing] {e}"
-                    continue
+                    sleep(0.5)
 
-                j_match = re.search(r"<p><a href=\".*\"><span class=\"songDownloadLink\"><i class=\"material-icons\">get_app<\/i>Click here to download as MP3<\/span><\/a>.*<\/p>", download_page)[0]
-                direct_url = re.search(r"https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()!@:%_\+.~#?&\/\/=]*)", j_match)[0]
+                    try:
+                        download_page = urlopen(j_base + indirect_url).read().decode()
+                    except Exception:
+                        self.status = f"[Parsing] {e}"
+                        continue
 
-                if not direct_url:
-                    self.status = "[Parsing] Couldn't find the direct url."
-                    continue
+                    j_match = re.search(r"<p><a href=\".*\"><span class=\"songDownloadLink\"><i class=\"material-icons\">get_app<\/i>Click here to download as MP3<\/span><\/a>.*<\/p>", download_page)[0]
+                    direct_url = re.search(r"https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()!@:%_\+.~#?&\/\/=]*)", j_match)[0]
 
-                direct_urls.append(direct_url)
+                    if not direct_url:
+                        self.status = "[Parsing] Couldn't find the direct url."
+                        continue
 
-                path = urlparse(direct_url).path
-                filename = unquote(os.path.basename(path))
+                    direct_urls.append(direct_url)
 
-                self.status = f"[Parsing] Found: {filename}"
+                    path = urlparse(direct_url).path
+                    filename = unquote(os.path.basename(path))
+
+                    self.status = f"[Parsing] Found: {filename}"
+
+            pthreads = []
+
+            for i in range(0, len(matches), 5):
+                print(f"assigned {matches[i:i+5]} to {i/5}")
+                pthreads.append(Thread(target=parse_direct_urls, args=(matches[i:i+5],), daemon=True))
+            
+            for thread in pthreads:
+                print(f"started {str(thread)}")
+                thread.start()
+                sleep(1)
 
             direct_urls = list(set(direct_urls))
 
-            for direct_url in direct_urls:
-                path = urlparse(direct_url).path
-                filename = unquote(os.path.basename(path))
+            def download_task(urls):
+                for direct_url in urls:
+                    path = urlparse(direct_url).path
+                    filename = unquote(os.path.basename(path))
 
-                sleep(0.25)
+                    sleep(0.5)
 
-                try:
-                    urlretrieve(direct_url, INPUT_DIR + filename)
-                    self.status = f"[Downloading] Downloaded: {filename}"
-                except Exception as e:
-                    self.status = f"[Downloading] {e}: {filename}"
+                    try:
+                        urlretrieve(direct_url, INPUT_DIR + filename)
+                        self.status = f"[Downloading] Downloaded: {filename}"
+                    except Exception as e:
+                        self.status = f"[Downloading] {e}: {filename}"
+                    
+                    self.progress += 1
+
+                    if self.progress >= self.target:
+                        self.done = True
+                        self.started = False
+                        self.progress = 0
+                        self.target = 0
+            
+            dthreads = []
+
+            self.target = len(direct_urls)
+
+            for i in range(0, len(direct_urls), 5):
+                print(f"assigned {direct_urls[i:i+5]} to {i/5}")
+                dthreads.append(Thread(target=download_task, args=(direct_urls[i:i+5],), daemon=True))
+            
+            for thread in dthreads:
+                print(f"started {str(thread)}")
+                thread.start()
+                sleep(1)
 
         except Exception as e:
             self.status = f"[Unexpected Error] {e}"
             print(format_exc())
 
-        self.done = True
-        self.started = False
-
     def download(self, url):
-        process_thread = Thread(target=self._download, args=(url,), daemon=True)
-        process_thread.start()
+        download_thread = Thread(target=self._download, args=(url,), daemon=True)
+        download_thread.start()
 
 class dependency_resolver():
     def __init__(self):
@@ -664,28 +700,42 @@ class gui():
         count = 0
         for key, info in self.music_list.songs.items():
 
+            color_button = [0.98, 0.98, 0.98, 0.4]
+            color_button_hover = [0.98, 0.98, 0.98, 0.4]
+            color_button_active = [0.98, 0.98, 0.98, 0.4]
+
             if self.current_file == key:
-                imgui.push_style_color(imgui.COLOR_BUTTON, 0.98, 0.98, 0.98, 0.4)
-                imgui.push_style_color(imgui.COLOR_BUTTON_HOVERED, 0.98, 0.98, 0.98, 0.4)
-                imgui.push_style_color(imgui.COLOR_BUTTON_ACTIVE, 0.98, 0.98, 0.98, 0.5)
+                color_button[3] = 0.4
+                color_button_hover[3] = 0.4
+                color_button_active[3] = 0.5
             else:
                 if count % 2 == 0:
-                    imgui.push_style_color(imgui.COLOR_BUTTON, 0.98, 0.98, 0.98, 0.2)
-                    imgui.push_style_color(imgui.COLOR_BUTTON_HOVERED, 0.98, 0.98, 0.98, 0.3)
-                    imgui.push_style_color(imgui.COLOR_BUTTON_ACTIVE, 0.98, 0.98, 0.98, 0.4)
+                    color_button[3] = 0.2
+                    color_button_hover[3] = 0.3
+                    color_button_active[3] = 0.4
                 else:
-                    imgui.push_style_color(imgui.COLOR_BUTTON, 0.98, 0.98, 0.98, 0.1)
-                    imgui.push_style_color(imgui.COLOR_BUTTON_HOVERED, 0.98, 0.98, 0.98, 0.2)
-                    imgui.push_style_color(imgui.COLOR_BUTTON_ACTIVE, 0.98, 0.98, 0.98, 0.3)                    
+                    color_button[3] = 0.1
+                    color_button_hover[3] = 0.2
+                    color_button_active[3] = 0.3
+
+            if info["action"] == "unknown":
+                color_button[1], color_button[2] = 0.75, 0.75  
+                color_button_hover[1], color_button_hover[2] = 0.75, 0.75
+                color_button_active[1], color_button_active[2] = 0.75, 0.75
+            else:
+                color_button[0], color_button[2] = 0.75, 0.75 
+                color_button_hover[0], color_button_hover[2] = 0.75, 0.75  
+                color_button_active[0], color_button_active[2] = 0.75, 0.75                
+            
+            imgui.push_style_color(imgui.COLOR_BUTTON, color_button[0], color_button[1], color_button[2], color_button[3])
+            imgui.push_style_color(imgui.COLOR_BUTTON_HOVERED, color_button_hover[0], color_button_hover[1], color_button_hover[2], color_button_hover[3])
+            imgui.push_style_color(imgui.COLOR_BUTTON_ACTIVE, color_button_active[0], color_button_active[1], color_button_active[2], color_button_active[3])
 
             if imgui.button(info.get("name")):
                 self.current_file = key
                 self.current_settings = info
                 self.music = music_player(key)
-
-            imgui.same_line()
-            imgui.text("[" + info["action"] + "]") 
-
+            
             imgui.pop_style_color(3)
             count += 1
 
