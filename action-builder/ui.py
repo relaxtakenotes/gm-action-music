@@ -1,22 +1,28 @@
-import imgui
+import os
 import subprocess
+import shutil
+from pathlib import Path
+from threading import Thread
+import zipfile
+from winreg import ConnectRegistry, OpenKey, HKEY_LOCAL_MACHINE, QueryValue
+import re
+import json
+from time import sleep
+
+import imgui
+
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
-import os
-from pathlib import Path
-import json
+
 from just_playback import Playback
-from threading import Thread
 from pydub import AudioSegment
 from pydub import effects
-import urllib.request
-import zipfile
-import shutil
-import khinsider
-import re
-from winreg import ConnectRegistry, OpenKey, HKEY_LOCAL_MACHINE, QueryValue
-from time import sleep
+
+from urllib.request import urlopen, urlretrieve
+from urllib.parse import urlparse, unquote
 import numpy
+
+from traceback import format_exc
 
 INPUT_DIR = r"input/"
 OUTPUT_DIR = r"output/"
@@ -33,11 +39,76 @@ class khinsider_downloader():
     def __init__(self):
         self.done = False
         self.started = False
+        self.status = "Idle..."
 
     def _download(self, url):
         self.done = False
         self.started = True
-        khinsider.download(url, INPUT_DIR, makeDirs=False, verbose=True)
+
+        i_base = "http://downloads.khinsider.com/game-soundtracks/album/"
+        j_base = "http://downloads.khinsider.com"
+        album = url
+
+        try:
+            album_page = urlopen(i_base + album).read().decode()
+
+            processed_hrefs = {}
+            direct_urls = []
+
+            for i_match in re.findall(r"<td class=\"clickable-row\" align=\"right\"><a href=\"\/game-soundtracks\/album\/.*\" style=\"font-weight:normal;\">.*<\/a><\/td>", album_page):
+                indirect_url = re.search(r"\"\/game-soundtracks\/album\/.*\/.*\.mp3\"", i_match)[0]
+
+                if not indirect_url:
+                    self.status = "[Parsing] Couldn't find an indirect url."
+                    continue
+
+                indirect_url = indirect_url[1:-1]
+
+                if processed_hrefs.get(indirect_url):
+                    continue
+
+                processed_hrefs[indirect_url] = True
+
+                sleep(0.25)
+
+                try:
+                    download_page = urlopen(j_base + indirect_url).read().decode()
+                except Exception:
+                    self.status = f"[Parsing] {e}"
+                    continue
+
+                j_match = re.search(r"<p><a href=\".*\"><span class=\"songDownloadLink\"><i class=\"material-icons\">get_app<\/i>Click here to download as MP3<\/span><\/a>.*<\/p>", download_page)[0]
+                direct_url = re.search(r"https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()!@:%_\+.~#?&\/\/=]*)", j_match)[0]
+
+                if not direct_url:
+                    self.status = "[Parsing] Couldn't find the direct url."
+                    continue
+
+                direct_urls.append(direct_url)
+
+                path = urlparse(direct_url).path
+                filename = unquote(os.path.basename(path))
+
+                self.status = f"[Parsing] Found: {filename}"
+
+            direct_urls = list(set(direct_urls))
+
+            for direct_url in direct_urls:
+                path = urlparse(direct_url).path
+                filename = unquote(os.path.basename(path))
+
+                sleep(0.25)
+
+                try:
+                    urlretrieve(direct_url, INPUT_DIR + filename)
+                    self.status = f"[Downloading] Downloaded: {filename}"
+                except Exception as e:
+                    self.status = f"[Downloading] {e}: {filename}"
+
+        except Exception as e:
+            self.status = f"[Unexpected Error] {e}"
+            print(format_exc())
+
         self.done = True
         self.started = False
 
@@ -85,7 +156,7 @@ class dependency_resolver():
             return
         self.gmpublisher_status = "Downloading installer..."
         try:
-            urllib.request.urlretrieve("https://github.com/WilliamVenner/gmpublisher/releases/download/2.9.2/gmpublisher_2.9.2_x64.msi", "gmpublisher.msi")
+            urlretrieve("https://github.com/WilliamVenner/gmpublisher/releases/download/2.9.2/gmpublisher_2.9.2_x64.msi", "gmpublisher.msi")
             self.gmpublisher_status = "Running installer..."
             subprocess.run("gmpublisher.msi", shell=True)
             self._check_gmpublisher()
@@ -107,7 +178,7 @@ class dependency_resolver():
             return
         self.ffmpeg_status = "Installing."
         try:
-            urllib.request.urlretrieve("https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2023-07-04-12-50/ffmpeg-N-111332-g9ff834c2a0-win64-gpl-shared.zip", "ffmpeg.zip")
+            urlretrieve("https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2023-07-04-12-50/ffmpeg-N-111332-g9ff834c2a0-win64-gpl-shared.zip", "ffmpeg.zip")
             with zipfile.ZipFile("ffmpeg.zip", 'r') as zip_ref:
                 zip_ref.extractall(".")
             os.remove("ffmpeg.zip")
@@ -140,7 +211,7 @@ class dependency_resolver():
             return
         self.ytdlp_status = "Installing."
         try:
-            urllib.request.urlretrieve("https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe", "tools/yt-dlp.exe")
+            urlretrieve("https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe", "tools/yt-dlp.exe")
         except Exception as e:
             self.ytdlp_status = e
             return
@@ -590,21 +661,33 @@ class gui():
 
     def draw_music_list(self):
         imgui.begin_child("music_list", self.width-16, -42, border=True, flags=imgui.WINDOW_HORIZONTAL_SCROLLING_BAR)
+        count = 0
         for key, info in self.music_list.songs.items():
-            _text = info.get("name")
-            if self.current_file == key:
-                _text = f"[[{_text}]]"
 
-            if imgui.button(_text):
+            if self.current_file == key:
+                imgui.push_style_color(imgui.COLOR_BUTTON, 0.98, 0.98, 0.98, 0.4)
+                imgui.push_style_color(imgui.COLOR_BUTTON_HOVERED, 0.98, 0.98, 0.98, 0.4)
+                imgui.push_style_color(imgui.COLOR_BUTTON_ACTIVE, 0.98, 0.98, 0.98, 0.5)
+            else:
+                if count % 2 == 0:
+                    imgui.push_style_color(imgui.COLOR_BUTTON, 0.98, 0.98, 0.98, 0.2)
+                    imgui.push_style_color(imgui.COLOR_BUTTON_HOVERED, 0.98, 0.98, 0.98, 0.3)
+                    imgui.push_style_color(imgui.COLOR_BUTTON_ACTIVE, 0.98, 0.98, 0.98, 0.4)
+                else:
+                    imgui.push_style_color(imgui.COLOR_BUTTON, 0.98, 0.98, 0.98, 0.1)
+                    imgui.push_style_color(imgui.COLOR_BUTTON_HOVERED, 0.98, 0.98, 0.98, 0.2)
+                    imgui.push_style_color(imgui.COLOR_BUTTON_ACTIVE, 0.98, 0.98, 0.98, 0.3)                    
+
+            if imgui.button(info.get("name")):
                 self.current_file = key
                 self.current_settings = info
                 self.music = music_player(key)
 
             imgui.same_line()
-            if info["action"] != "unknown":
-                imgui.text("+")
-            else:
-                imgui.text("-")
+            imgui.text("[" + info["action"] + "]") 
+
+            imgui.pop_style_color(3)
+            count += 1
 
         imgui.end_child()
 
@@ -654,7 +737,7 @@ class gui():
             if self.khinsider.done:
                 _text = "Download done."
             if self.khinsider.started:
-                _text = khinsider.last_line
+                _text = self.khinsider.status
             imgui.text(_text)
 
             imgui.push_item_width(self.width * 0.5)

@@ -13,6 +13,7 @@ from imgui.integrations.sdl2 import SDL2Renderer
 from ui import gui
 import traceback
 
+import pywintypes
 import win32gui, win32con
 
 width, height = 720, 850

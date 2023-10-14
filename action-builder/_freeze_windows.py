@@ -2,11 +2,13 @@ import sys
 from cx_Freeze import setup, Executable
 
 # base="Win32GUI" should be used only for Windows GUI app
-base = "Win32GUI" if sys.platform == "win32" else None
 build_exe_options = {"packages": ["OpenGL"], 
-                     "excludes": ['cx_Freeze','pydoc_data','setuptools','distutils','tkinter'], 
-                     "zip_include_packages": "*", 
-                     "zip_exclude_packages": "", 
+                     "excludes": ['cx_Freeze','pydoc_data','setuptools',
+                                  'distutils','tkinter','test','Cython',
+                                  '_pytest','hypothesis', "Pyinstaller",
+                                  'lxml','mypy','pygments',
+                                  'pycparser','psutil',
+                                  'html','curses'],
                      "include_msvcr": True}
 
 setup(
