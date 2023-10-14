@@ -44,6 +44,9 @@ class khinsider_downloader():
         self.target = 0
         self.progress = 0
 
+        self.progress_matches = 0
+        self.target_matches = 0
+
     def _download(self, url):
         self.done = False
         self.started = True
@@ -66,11 +69,13 @@ class khinsider_downloader():
 
                     if not indirect_url:
                         self.status = "[Parsing] Couldn't find an indirect url."
+                        self.progress_matches += 1
                         continue
 
                     indirect_url = indirect_url[1:-1]
 
                     if processed_hrefs.get(indirect_url):
+                        self.progress_matches += 1
                         continue
 
                     processed_hrefs[indirect_url] = True
@@ -81,6 +86,7 @@ class khinsider_downloader():
                         download_page = urlopen(j_base + indirect_url).read().decode()
                     except Exception:
                         self.status = f"[Parsing] {e}"
+                        self.progress_matches += 1
                         continue
 
                     j_match = re.search(r"<p><a href=\".*\"><span class=\"songDownloadLink\"><i class=\"material-icons\">get_app<\/i>Click here to download as MP3<\/span><\/a>.*<\/p>", download_page)[0]
@@ -88,6 +94,7 @@ class khinsider_downloader():
 
                     if not direct_url:
                         self.status = "[Parsing] Couldn't find the direct url."
+                        self.progress_matches += 1
                         continue
 
                     direct_urls.append(direct_url)
@@ -96,52 +103,49 @@ class khinsider_downloader():
                     filename = unquote(os.path.basename(path))
 
                     self.status = f"[Parsing] Found: {filename}"
+                    self.progress_matches += 1
 
             pthreads = []
 
+            self.target_matches = len(matches)
+
             for i in range(0, len(matches), 5):
-                print(f"assigned {matches[i:i+5]} to {i/5}")
                 pthreads.append(Thread(target=parse_direct_urls, args=(matches[i:i+5],), daemon=True))
             
             for thread in pthreads:
-                print(f"started {str(thread)}")
                 thread.start()
                 sleep(1)
+            
+            while True:
+                if self.progress_matches >= self.target_matches:
+                    break
 
             direct_urls = list(set(direct_urls))
 
-            def download_task(urls):
-                for direct_url in urls:
-                    path = urlparse(direct_url).path
-                    filename = unquote(os.path.basename(path))
+            def download_task(direct_url):
+                path = urlparse(direct_url).path
+                filename = unquote(os.path.basename(path))
 
-                    sleep(0.5)
+                try:
+                    urlretrieve(direct_url, INPUT_DIR + filename)
+                    self.status = f"[Downloading] Downloaded: {filename}"
+                except Exception as e:
+                    self.status = f"[Downloading] {e}: {filename}"
+                
+                self.progress += 1
 
-                    try:
-                        urlretrieve(direct_url, INPUT_DIR + filename)
-                        self.status = f"[Downloading] Downloaded: {filename}"
-                    except Exception as e:
-                        self.status = f"[Downloading] {e}: {filename}"
-                    
-                    self.progress += 1
-
-                    if self.progress >= self.target:
-                        self.done = True
-                        self.started = False
-                        self.progress = 0
-                        self.target = 0
+                if self.progress >= self.target:
+                    self.done = True
+                    self.started = False
+                    self.progress = 0
+                    self.target = 0
             
             dthreads = []
 
             self.target = len(direct_urls)
 
-            for i in range(0, len(direct_urls), 5):
-                print(f"assigned {direct_urls[i:i+5]} to {i/5}")
-                dthreads.append(Thread(target=download_task, args=(direct_urls[i:i+5],), daemon=True))
-            
-            for thread in dthreads:
-                print(f"started {str(thread)}")
-                thread.start()
+            for i in range(0, len(direct_urls)):
+                thread = Thread(target=download_task, args=(direct_urls[i],), daemon=True).start()
                 sleep(1)
 
         except Exception as e:
@@ -316,14 +320,24 @@ class music_processor():
 class music_player():
     def __init__(self, path):
         self.playback = Playback()
-        self.playback.load_file(path)
-        self.playback.play()
-        self.playback.pause()
+        self.ready = False
+
         self.paused = True
         self.seeking = False
         self.volume = 0.75
 
+        def load(path):
+            self.playback.load_file(path)
+            self.playback.play()
+            self.playback.pause()
+            self.ready = True
+
+        load_thread = Thread(target=load, args=(path,), daemon=True)
+        load_thread.start()
+
     def toggle(self):
+        if not self.ready:
+            return
         self.paused = not self.paused
         if self.paused:
             self.playback.pause()
@@ -331,6 +345,8 @@ class music_player():
             self.playback.resume()
 
     def seek(self, time, changed, lmb):
+        if not self.ready:
+            return
         if changed and lmb:
             self.seeking = True
 
@@ -344,6 +360,8 @@ class music_player():
                 self.playback.resume()
 
     def think(self):
+        if not self.ready:
+            return
         self.playback.set_volume(self.volume)
         if self.playback.curr_pos >= self.playback.duration - 0.05:
             self.playback.seek(0)
@@ -699,7 +717,6 @@ class gui():
         imgui.begin_child("music_list", self.width-16, -42, border=True, flags=imgui.WINDOW_HORIZONTAL_SCROLLING_BAR)
         count = 0
         for key, info in self.music_list.songs.items():
-
             color_button = [0.98, 0.98, 0.98, 0.4]
             color_button_hover = [0.98, 0.98, 0.98, 0.4]
             color_button_active = [0.98, 0.98, 0.98, 0.4]
@@ -731,11 +748,13 @@ class gui():
             imgui.push_style_color(imgui.COLOR_BUTTON_HOVERED, color_button_hover[0], color_button_hover[1], color_button_hover[2], color_button_hover[3])
             imgui.push_style_color(imgui.COLOR_BUTTON_ACTIVE, color_button_active[0], color_button_active[1], color_button_active[2], color_button_active[3])
 
-            if imgui.button(info.get("name")):
+            imgui.push_style_var(imgui.STYLE_BUTTON_TEXT_ALIGN, (0,0.5))
+            if imgui.button(info.get("name"), width=imgui.get_content_region_available_width()):
                 self.current_file = key
                 self.current_settings = info
                 self.music = music_player(key)
-            
+            imgui.pop_style_var(1)
+
             imgui.pop_style_color(3)
             count += 1
 
@@ -823,16 +842,15 @@ class gui():
     def draw_song_configuration(self):
         imgui.begin_child("main", 0, -42, border=True)
         if self.current_file and self.current_settings:
-            imgui.text(f"Current Song: {self.current_settings['name']}")
             imgui.spacing()
-            imgui.separator()
-            imgui.spacing()
-
-            imgui.push_item_width(self.width - 72)
+            
+            imgui.push_item_width(imgui.get_content_region_available_width())
             imgui.push_id("newname")
             _, self.current_settings["name"] = imgui.input_text('Name', self.current_settings["name"], 256)
             imgui.pop_id()
             imgui.pop_item_width()
+
+            imgui.spacing()
 
             if imgui.button("Background"):
                 self.current_settings["action"] = "background"
@@ -848,57 +866,70 @@ class gui():
             imgui.same_line()
             imgui.text(f"Action Type: {self.current_settings.get('action')}")
 
+            imgui.spacing()
+
             _, self.current_settings["normalize"] = imgui.checkbox("Normalize", self.current_settings["normalize"])
 
-            if self.music:
+            time = 0
+            duration = 0
+
+            if self.music and self.music.ready:
                 time = self.music.playback.curr_pos
+                duration = self.music.playback.duration
 
-                if imgui.button("Mark Start"):
-                    self.current_settings["start"] = time
-                imgui.same_line()
-                if imgui.button("Mark End"):
-                    self.current_settings["end"] = time
-                imgui.same_line()
+            imgui.spacing()
+            
+            if imgui.button("Mark Start"):
+                self.current_settings["start"] = time
+            
+            imgui.same_line()
 
-                imgui.text(f"Start: {self.current_settings['start']} | End: {self.current_settings['end']}")
+            if imgui.button("Mark End"):
+                self.current_settings["end"] = time
+            
+            imgui.same_line()
 
-                imgui.push_item_width(50)
-                _, self.current_settings["fade_start"] = imgui.input_float('Fade Start', self.current_settings["fade_start"])
-                imgui.same_line()
-                _, self.current_settings["fade_end"] = imgui.input_float('Fade End', self.current_settings["fade_end"])
-                imgui.pop_item_width()
+            imgui.text(f"Start: {self.current_settings['start']} | End: {self.current_settings['end']}")
+            
+            imgui.spacing()
 
-                if imgui.button("|>"):
-                    self.music.toggle()
+            imgui.push_item_width(50)
+            _, self.current_settings["fade_start"] = imgui.input_float('Fade Start', self.current_settings["fade_start"])
+            imgui.same_line()
+            _, self.current_settings["fade_end"] = imgui.input_float('Fade End', self.current_settings["fade_end"])
+            imgui.pop_item_width()
 
-                imgui.same_line()
+            imgui.spacing()
 
-                imgui.push_item_width((self.width - 76) * 0.9)
-                imgui.push_id("seek_slider")
-                changed, time = imgui.slider_float(
-                    "", time,
-                    min_value=0.0, max_value=self.music.playback.duration,
-                    format="%.2f",
-                    power=1.0
-                )
-                imgui.pop_id()
-                imgui.pop_item_width()
+            if imgui.button("|>"):
+                self.music.toggle()
 
-                self.music.seek(time, changed, self.buttonstate.left)
+            imgui.same_line()
 
-                imgui.same_line()
-                imgui.push_item_width((self.width - 9) * 0.1)
-                imgui.push_id("volume_slider")
-                _, self.music.volume = imgui.slider_float(
-                    "", self.music.volume,
-                    min_value=0.0, max_value=1.0,
-                    format="%.2f",
-                    power=1.0
-                )
-                imgui.pop_id()
-                imgui.pop_item_width()
+            imgui.push_item_width((self.width - 76) * 0.9)
+            imgui.push_id("seek_slider")
+            changed, time = imgui.slider_float(
+                "", time,
+                min_value=0.0, max_value=duration,
+                format="%.2f",
+                power=1.0
+            )
+            imgui.pop_id()
+            imgui.pop_item_width()
 
-                self.music.think()
+            self.music.seek(time, changed, self.buttonstate.left)
+
+            imgui.same_line()
+            imgui.push_item_width((self.width - 9) * 0.1)
+            imgui.push_id("volume_slider")
+            _, self.music.volume = imgui.slider_float(
+                "", self.music.volume,
+                min_value=0.0, max_value=1.0,
+                format="%.2f",
+                power=1.0
+            )
+            imgui.pop_id()
+            imgui.pop_item_width()
 
             self.music_list.songs[self.current_file] = self.current_settings
         imgui.end_child()
