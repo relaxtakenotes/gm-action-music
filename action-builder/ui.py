@@ -10,6 +10,7 @@ import json
 from time import sleep
 
 import imgui
+from sdl2 import *
 
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
@@ -474,6 +475,12 @@ class gui():
         self.mx = 0
         self.my = 0
         self.buttonstate = None
+
+        self.last_key_state = {}
+        self.keyboard_state = None
+        self.key_pressed_time = {}
+        self.switch_delay = 0
+
         self.window_flags = imgui.WINDOW_NO_MOVE + imgui.WINDOW_NO_RESIZE + imgui.WINDOW_NO_SCROLL_WITH_MOUSE + imgui.WINDOW_NO_TITLE_BAR
 
         self.music_list = music_list()
@@ -1000,15 +1007,116 @@ class gui():
         self.draw_song_configuration()
         self.draw_footer()
         imgui.end()
+    
+    def pressed_key(self, code):
+        if self.keyboard_state[code] == self.last_key_state.get(code):
+            if self.keyboard_state[code]:
+                self.key_pressed_time[code] += 0.016
+            else:
+                self.key_pressed_time[code] = 0
+            return [self.key_pressed_time.get(code, 0), False]
+        self.last_key_state[code] = self.keyboard_state[code]
+        return [self.key_pressed_time.get(code, 0), self.keyboard_state[code]]
 
-    def render(self, width, height, mx, my, buttonstate):
+    def handle_keybinds(self):
+        pressed_up_time, pressed_up = self.pressed_key(SDL_SCANCODE_UP)
+        pressed_down_time, pressed_down = self.pressed_key(SDL_SCANCODE_DOWN)
+
+        delay = 0.3
+
+        if pressed_up or pressed_up_time - self.switch_delay > delay or pressed_down or pressed_down_time - self.switch_delay > delay:
+            song_list = list(self.music_list.songs.items())
+
+            if len(song_list) <= 0:
+                return
+            
+            for i, items in enumerate(song_list):
+                if self.current_file == items[0]:
+                    if pressed_down or (not pressed_down and pressed_down_time > delay):
+                        self.current_file, self.current_settings = song_list[min(i+1, len(song_list)-1)]
+                    
+                    if pressed_up or (not pressed_up and pressed_up_time > delay):
+                        self.current_file, self.current_settings = song_list[max(i-1, 0)]
+
+                    self.music = music_player(self.current_file)
+
+                    self.switch_delay += delay
+                    break
+            else:
+                self.current_file, self.current_settings = song_list[0]
+                self.music = music_player(self.current_file)
+        else:
+            self.switch_delay = 0
+        
+        if self.current_file and self.current_settings:
+            _, pressed_normalize = self.pressed_key(SDL_SCANCODE_Q)
+
+            _, pressed_background = self.pressed_key(SDL_SCANCODE_1)
+            _, pressed_battle = self.pressed_key(SDL_SCANCODE_2)
+            _, pressed_battle_intensive = self.pressed_key(SDL_SCANCODE_3)
+            _, pressed_suspense = self.pressed_key(SDL_SCANCODE_4)
+
+            _, pressed_toggle = self.pressed_key(SDL_SCANCODE_SPACE)
+            pressed_backwards_time, pressed_backwards = self.pressed_key(SDL_SCANCODE_LEFT)
+            pressed_forward_time, pressed_forward = self.pressed_key(SDL_SCANCODE_RIGHT)
+
+            _, pressed_mark_start = self.pressed_key(SDL_SCANCODE_A)
+            _, pressed_mark_end = self.pressed_key(SDL_SCANCODE_S)
+
+            pressed_fade_start_up_time, pressed_fade_start_up = self.pressed_key(SDL_SCANCODE_X)
+            pressed_fade_start_down_time, pressed_fade_start_down = self.pressed_key(SDL_SCANCODE_Z)
+            pressed_mark_end_up_time, pressed_mark_end_up = self.pressed_key(SDL_SCANCODE_V)
+            pressed_mark_end_down_time, pressed_mark_end_down = self.pressed_key(SDL_SCANCODE_C)
+
+            if pressed_normalize:
+                self.current_settings["normalize"] = not self.current_settings["normalize"]
+            
+            if pressed_background:
+                self.current_settings["action"] = "background" 
+            if pressed_battle:
+                self.current_settings["action"] = "battle" 
+            if pressed_battle_intensive:
+                self.current_settings["action"] = "battle_intensive" 
+            if pressed_suspense:
+                self.current_settings["action"] = "suspense"
+            
+            if pressed_toggle:
+                self.music.toggle()
+            
+            if self.music.ready:
+                if pressed_backwards or (pressed_backwards_time > 0.5):
+                    self.music.playback.seek(self.music.playback.curr_pos - max((pressed_backwards_time * pressed_backwards_time) / 10, 0.1))
+                if pressed_forward or (pressed_forward_time > 0.5):
+                    self.music.playback.seek(self.music.playback.curr_pos + max((pressed_forward_time * pressed_forward_time) / 10, 0.1))
+                
+                if pressed_mark_start:
+                    self.current_settings["start"] = self.music.playback.curr_pos
+                if pressed_mark_end:
+                    self.current_settings["end"] = self.music.playback.curr_pos
+
+                if pressed_fade_start_up or (pressed_fade_start_up_time > 0.5):
+                    self.current_settings["fade_start"] += max(pressed_fade_start_up_time ** 1.5 / 10, 0.01)
+                if pressed_fade_start_down or (pressed_fade_start_down_time > 0.5):
+                    self.current_settings["fade_start"] -= max(pressed_fade_start_down_time ** 1.5 / 10, 0.01)
+                if pressed_mark_end_up or (pressed_mark_end_up_time > 0.5):
+                    self.current_settings["fade_end"] += max(pressed_mark_end_up_time ** 1.5 / 10, 0.01)
+                if pressed_mark_end_down or (pressed_mark_end_down_time > 0.5):
+                    self.current_settings["fade_end"] -= max(pressed_mark_end_down_time ** 1.5 / 10, 0.01)
+
+                self.current_settings["fade_start"] = max(self.current_settings["fade_start"], 0)
+                self.current_settings["fade_end"] = max(self.current_settings["fade_end"], 0)
+
+    def render(self, width, height, mx, my, buttonstate, keyboard_state):
         self.width = width
         self.height = height
         self.mx = mx
         self.my = my
         self.buttonstate = buttonstate
+        self.keyboard_state = keyboard_state
 
         self.push_style()
+
+        self.handle_keybinds()
         
         if self.dependency_resolver.ffmpeg:
             self.draw_top_segment()

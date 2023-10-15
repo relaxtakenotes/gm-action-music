@@ -78,10 +78,11 @@ def main():
 
             mx, my = ctypes.c_int(0), ctypes.c_int(0)
             button_state = mouse.SDL_GetMouseState(ctypes.byref(mx), ctypes.byref(my))
+            keyboard_state = SDL_GetKeyboardState(None)
 
             with imgui.font(custom_font):
                 #imgui.show_style_editor()
-                c_ui.render(width=w.value, height=h.value, mx=mx.value, my=my.value, buttonstate=sdl2.ext.mouse.ButtonState(button_state))
+                c_ui.render(width=w.value, height=h.value, mx=mx.value, my=my.value, buttonstate=sdl2.ext.mouse.ButtonState(button_state), keyboard_state=keyboard_state)
 
             gl.glClearColor(0, 0, 0, 1)
             gl.glClear(gl.GL_COLOR_BUFFER_BIT)
