@@ -615,7 +615,7 @@ class gui():
         if imgui.button("Reset selected") and self.current_file and self.current_settings:
             imgui.open_popup("reset-current")
         imgui.same_line()
-        if imgui.button("Remove selected") and self.current_file and self.current_settings:
+        if (imgui.button("Remove selected") or self.pressed_key(SDL_SCANCODE_DELETE)[1]) and self.current_file and self.current_settings:
             imgui.open_popup("remove-selected")
         imgui.same_line()
         if imgui.button("Output"):
@@ -736,7 +736,7 @@ class gui():
 
         if imgui.begin_popup_modal("remove-selected", True, flags=self.window_flags)[0]:
             imgui.text("Are you sure? You won't be able to return this file.")
-            if imgui.button("Yes!"):
+            if imgui.button("Yes!") or self.pressed_key(SDL_SCANCODE_RETURN)[1]:
                 self.music = None
                 os.remove(self.current_file)
                 del self.music_list.songs[self.current_file]
@@ -744,7 +744,7 @@ class gui():
                 self.current_settings = {}
                 imgui.close_current_popup()
             imgui.same_line()
-            if imgui.button("No!"):
+            if imgui.button("No!") or self.pressed_key(SDL_SCANCODE_ESCAPE)[1]:
                 imgui.close_current_popup()
             imgui.end_popup()
         
