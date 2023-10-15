@@ -23,6 +23,7 @@ from urllib.parse import urlparse, unquote
 import numpy
 
 from traceback import format_exc
+from multiprocessing import cpu_count
 
 INPUT_DIR = r"input/"
 OUTPUT_DIR = r"output/"
@@ -46,6 +47,8 @@ class khinsider_downloader():
 
         self.progress_matches = 0
         self.target_matches = 0
+
+        self.unsafe = False
 
     def _download(self, url):
         self.done = False
@@ -80,7 +83,8 @@ class khinsider_downloader():
 
                     processed_hrefs[indirect_url] = True
 
-                    sleep(0.5)
+                    if not self.unsafe:
+                        sleep(0.5)
 
                     try:
                         download_page = urlopen(j_base + indirect_url).read().decode()
@@ -114,7 +118,8 @@ class khinsider_downloader():
             
             for thread in pthreads:
                 thread.start()
-                sleep(1)
+                if not self.unsafe:
+                    sleep(1)
             
             while True:
                 if self.progress_matches >= self.target_matches:
@@ -146,7 +151,8 @@ class khinsider_downloader():
 
             for i in range(0, len(direct_urls)):
                 thread = Thread(target=download_task, args=(direct_urls[i],), daemon=True).start()
-                sleep(1)
+                if not self.unsafe:
+                    sleep(1)
 
         except Exception as e:
             self.status = f"[Unexpected Error] {e}"
@@ -268,6 +274,7 @@ class music_processor():
         self.progress_curr = 0
         self.progress_max = 0
         self.cancel = False
+        self.threads = 1
 
     def _process(self, pack_name):
         self.progress_max = 0
@@ -286,32 +293,46 @@ class music_processor():
             os.mkdir(f"{OUTPUT_DIR}/{pack_name}/sound/am_music/suspense")
         except FileExistsError:
             pass
-        for key, info in self.music_list.songs.items():
-            if self.cancel:
-                return
-            if info["action"] == "unknown":
-                continue
-            name, _ = os.path.splitext(info["name"])
+        
+        def edit(items):
+            try:
+                for key, info in items.items():
+                    if self.cancel:
+                        return
+                    if info["action"] == "unknown":
+                        continue
+                    name, _ = os.path.splitext(info["name"])
 
-            audio = AudioSegment.from_file(key)
-            if info["normalize"]:
-                audio = effects.normalize(audio, 2)
+                    audio = AudioSegment.from_file(key)
+                    if info["normalize"]:
+                        audio = effects.normalize(audio, 2)
 
-            if info["start"] > 0 and info["end"] == 0:
-                audio = audio[int(info["start"]*1000):len(audio)]
-            if info["start"] == 0 and info["end"] > 0:
-                audio = audio[0:int(info["end"]*1000)]
-            if info["start"] > 0 and info["end"] > 0:
-                audio = audio[int(info["start"]*1000):int(info["end"]*1000)]
+                    if info["start"] > 0 and info["end"] == 0:
+                        audio = audio[int(info["start"]*1000):len(audio)]
+                    if info["start"] == 0 and info["end"] > 0:
+                        audio = audio[0:int(info["end"]*1000)]
+                    if info["start"] > 0 and info["end"] > 0:
+                        audio = audio[int(info["start"]*1000):int(info["end"]*1000)]
 
-            if info["fade_start"]:
-                audio = audio.fade_in(int(info["fade_start"]*1000))
-            if info["fade_end"]:
-                audio = audio.fade_out(int(info["fade_end"]*1000))
+                    if info["fade_start"]:
+                        audio = audio.fade_in(int(info["fade_start"]*1000))
+                    if info["fade_end"]:
+                        audio = audio.fade_out(int(info["fade_end"]*1000))
+                    
+                    audio.export(f'output/{pack_name}/sound/am_music/{info["action"]}/{name}.ogg', format="ogg", codec="libvorbis")
 
-            audio.export(f'output/{pack_name}/sound/am_music/{info["action"]}/{name}.ogg', format="ogg", codec="libvorbis")
-
-            self.progress_curr += 1
+                    self.progress_curr += 1
+            except Exception:
+                print(format_exc())
+        
+        ethreads = []
+        length = len(self.music_list.songs)
+        step = length // self.threads
+        for i in range(0, length, step):
+            ethreads.append(Thread(target=edit, args=(dict(list(self.music_list.songs.items())[i:i+step]),), daemon=True))
+        
+        for thread in ethreads:
+            thread.start()
 
     def process(self, pack_name):
         process_thread = Thread(target=self._process, args=(pack_name,), daemon=True)
@@ -459,6 +480,8 @@ class gui():
         self.current_file = ""
         self.current_settings = {}
         self.pack_name = "Pack Name"
+        self.ffmpeg_threads = cpu_count()
+        self.khinsider_unsafe = False
 
         self.music = None
 
@@ -497,7 +520,9 @@ class gui():
             data = {}
             with open("last_session.json", "r") as f:
                 data = json.load(f)
-                self.pack_name = data["pack_name"]
+                self.pack_name = data.get("pack_name", "Pack Name")
+                self.ffmpeg_threads = data.get("ffmpeg_threads", cpu_count())
+                self.khinsider_unsafe = data.get("khinsider_unsafe", False)
                 for key, info in self.music_list.songs.items():
                     if data.get("music_list").get(key):
                         self.music_list.songs[key] = data.get("music_list").get(key)
@@ -513,6 +538,8 @@ class gui():
                 "current_file": self.current_file,
                 "current_settings": self.current_settings,
                 "pack_name": self.pack_name,
+                "ffmpeg_threads": self.ffmpeg_threads,
+                "khinsider_unsafe": self.khinsider_unsafe
             }
             json.dump(data, f)
 
@@ -584,17 +611,20 @@ class gui():
         if imgui.button("Remove selected") and self.current_file and self.current_settings:
             imgui.open_popup("remove-selected")
         imgui.same_line()
-        if imgui.button("Open output"):
+        if imgui.button("Output"):
             subprocess.Popen(f"start \"\" \"{os.path.abspath(OUTPUT_DIR)}\"", shell=True)
         imgui.same_line()
-        if imgui.button("Open input"):
+        if imgui.button("Input"):
             subprocess.Popen(f"start \"\" \"{os.path.abspath(INPUT_DIR)}\"", shell=True)
         imgui.same_line()
-        if imgui.button("Mass rename"):
+        if imgui.button("Rename All"):
             imgui.open_popup("mass-rename")
         imgui.same_line()
-        if imgui.button("Mass Configure"):
+        if imgui.button("Configure All"):
             imgui.open_popup("mass-cfg")
+        imgui.same_line()
+        if imgui.button("Config"):
+            imgui.open_popup("cfg")
 
         if imgui.begin_popup_modal("mass-rename", True, flags=self.window_flags)[0]:
             imgui.text("This will rename all the files in the directory using a regex pattern you pass.")
@@ -710,6 +740,14 @@ class gui():
             if imgui.button("No!"):
                 imgui.close_current_popup()
             imgui.end_popup()
+        
+        if imgui.begin_popup_modal("cfg", True, flags=self.window_flags)[0]:
+            imgui.text("Miscellaneous settings that you probably shouldn't change.")
+            _, self.khinsider_unsafe = imgui.checkbox("KHInsider unsafe mode", self.khinsider_unsafe)
+            _, self.ffmpeg_threads = imgui.input_int("FFMpeg threads", self.ffmpeg_threads)
+            if imgui.button("Exit"):
+                imgui.close_current_popup()
+            imgui.end_popup()
 
         imgui.end_child()
 
@@ -816,6 +854,7 @@ class gui():
                 imgui.close_current_popup()
             imgui.same_line()
             if imgui.button("Execute"):
+                self.khinsider.unsafe = self.khinsider_unsafe
                 self.khinsider.download(self.khinsider_url)
             imgui.end_popup()
         imgui.end_child()
@@ -938,6 +977,7 @@ class gui():
         imgui.begin_child("footer", 0, 38, border=True)
         if imgui.button("Apply"):
             self.processor.cancel = False
+            self.processor.threads = self.ffmpeg_threads
             self.processor.process(self.pack_name)
             imgui.open_popup("processor-progress")
         if imgui.begin_popup_modal("processor-progress", True, flags=self.window_flags)[0]:
