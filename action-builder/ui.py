@@ -480,6 +480,7 @@ class gui():
         self.keyboard_state = None
         self.key_pressed_time = {}
         self.switch_delay = 0
+        self.in_textbox = False
 
         self.window_flags = imgui.WINDOW_NO_MOVE + imgui.WINDOW_NO_RESIZE + imgui.WINDOW_NO_SCROLL_WITH_MOUSE + imgui.WINDOW_NO_TITLE_BAR
 
@@ -521,6 +522,9 @@ class gui():
         self.mass_cfg_fade_end_change = False
 
         self.restore_last_session()
+    
+    def mark_text(self):
+        self.in_textbox = self.in_textbox or imgui.is_item_active()
 
     def restore_last_session(self):
         if os.path.isfile("last_session.json"):
@@ -615,7 +619,7 @@ class gui():
         if imgui.button("Reset selected") and self.current_file and self.current_settings:
             imgui.open_popup("reset-current")
         imgui.same_line()
-        if (imgui.button("Remove selected") or self.pressed_key(SDL_SCANCODE_DELETE)[1]) and self.current_file and self.current_settings:
+        if (imgui.button("Remove selected") or (self.pressed_key(SDL_SCANCODE_DELETE)[1] and not self.in_textbox)) and self.current_file and self.current_settings:
             imgui.open_popup("remove-selected")
         imgui.same_line()
         if imgui.button("Output"):
@@ -638,7 +642,9 @@ class gui():
 
             imgui.push_item_width(self.width * 0.5)
             _, self.mass_rename_pattern = imgui.input_text('Pattern', self.mass_rename_pattern, 256)
+            self.mark_text()
             _, self.mass_rename_replace = imgui.input_text('What to replace with', self.mass_rename_replace, 256)
+            self.mark_text()
             imgui.pop_item_width()
             if imgui.button("Quit"):
                 imgui.close_current_popup()
@@ -736,7 +742,7 @@ class gui():
 
         if imgui.begin_popup_modal("remove-selected", True, flags=self.window_flags)[0]:
             imgui.text("Are you sure? You won't be able to return this file.")
-            if imgui.button("Yes!") or self.pressed_key(SDL_SCANCODE_RETURN)[1]:
+            if imgui.button("Yes!") or (self.pressed_key(SDL_SCANCODE_RETURN)[1]  and not self.in_textbox):
                 self.music = None
                 os.remove(self.current_file)
                 del self.music_list.songs[self.current_file]
@@ -744,7 +750,7 @@ class gui():
                 self.current_settings = {}
                 imgui.close_current_popup()
             imgui.same_line()
-            if imgui.button("No!") or self.pressed_key(SDL_SCANCODE_ESCAPE)[1]:
+            if imgui.button("No!") or (self.pressed_key(SDL_SCANCODE_ESCAPE)[1]  and not self.in_textbox):
                 imgui.close_current_popup()
             imgui.end_popup()
         
@@ -838,6 +844,7 @@ class gui():
 
             imgui.push_item_width(self.width * 0.3)
             _, self.ytdlp_url = imgui.input_text('', self.ytdlp_url, 256)
+            self.mark_text()
             imgui.pop_item_width()
             if imgui.button("Quit"):
                 imgui.close_current_popup()
@@ -856,6 +863,7 @@ class gui():
 
             imgui.push_item_width(self.width * 0.5)
             _, self.khinsider_url = imgui.input_text('', self.khinsider_url, 256)
+            self.mark_text()
             imgui.pop_item_width()
             if imgui.button("Quit"):
                 imgui.close_current_popup()
@@ -871,6 +879,7 @@ class gui():
         imgui.push_item_width(self.width-32)
         imgui.push_id("packname")
         _, self.pack_name = imgui.input_text('', self.pack_name, 256)
+        self.mark_text()
         imgui.pop_id()
         imgui.pop_item_width()
         imgui.end_child()
@@ -893,6 +902,7 @@ class gui():
             imgui.push_item_width(imgui.get_content_region_available_width())
             imgui.push_id("newname")
             _, self.current_settings["name"] = imgui.input_text('Name', self.current_settings["name"], 256)
+            self.mark_text()
             imgui.pop_id()
             imgui.pop_item_width()
 
@@ -1019,6 +1029,9 @@ class gui():
         return [self.key_pressed_time.get(code, 0), self.keyboard_state[code]]
 
     def handle_keybinds(self):
+        if self.in_textbox:
+            return
+
         pressed_up_time, pressed_up = self.pressed_key(SDL_SCANCODE_UP)
         pressed_down_time, pressed_down = self.pressed_key(SDL_SCANCODE_DOWN)
 
@@ -1113,11 +1126,10 @@ class gui():
         self.my = my
         self.buttonstate = buttonstate
         self.keyboard_state = keyboard_state
+        self.in_textbox = False
 
         self.push_style()
 
-        self.handle_keybinds()
-        
         if self.dependency_resolver.ffmpeg:
             self.draw_top_segment()
             self.draw_bottom_segment()
@@ -1129,6 +1141,8 @@ class gui():
             imgui.text("Normal UI will be drawn once it's done.")
             imgui.end()            
         
+        self.handle_keybinds()
+
         self.pop_style()
 
     def stop(self):
