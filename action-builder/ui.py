@@ -481,11 +481,13 @@ class gui():
         self.key_pressed_time = {}
         self.switch_delay = 0
         self.in_textbox = False
+        self.last_song_index = 0
 
         self.window_flags = imgui.WINDOW_NO_MOVE + imgui.WINDOW_NO_RESIZE + imgui.WINDOW_NO_SCROLL_WITH_MOUSE + imgui.WINDOW_NO_TITLE_BAR
 
         self.music_list = music_list()
         self.current_file = ""
+        self.need_to_refocus = False
         self.current_settings = {}
         self.pack_name = "Pack Name"
         self.ffmpeg_threads = cpu_count()
@@ -605,7 +607,7 @@ class gui():
         imgui.push_style_color(imgui.COLOR_NAV_HIGHLIGHT, 0.98, 0.98, 0.98, 1.00)
         imgui.push_style_color(imgui.COLOR_NAV_WINDOWING_HIGHLIGHT, 1.00, 1.00, 1.00, 0.70)
         imgui.push_style_color(imgui.COLOR_NAV_WINDOWING_DIM_BACKGROUND, 0.80, 0.80, 0.80, 0.20)
-        imgui.push_style_color(imgui.COLOR_MODAL_WINDOW_DIM_BACKGROUND, 0.80, 0.80, 0.80, 0.35)
+        imgui.push_style_color(imgui.COLOR_MODAL_WINDOW_DIM_BACKGROUND, 0, 0, 0, 0.35)
 
     def pop_style(self):
         imgui.pop_style_var(7)
@@ -776,6 +778,9 @@ class gui():
                 color_button[3] = 0.4
                 color_button_hover[3] = 0.4
                 color_button_active[3] = 0.5
+                if self.need_to_refocus:
+                    imgui.set_scroll_here()
+                    self.need_to_refocus = False
             else:
                 if count % 2 == 0:
                     color_button[3] = 0.2
@@ -802,8 +807,16 @@ class gui():
             imgui.push_style_var(imgui.STYLE_BUTTON_TEXT_ALIGN, (0,0.5))
             if imgui.button(info.get("name"), width=imgui.get_content_region_available_width()):
                 self.current_file = key
+                self.need_to_refocus = True
                 self.current_settings = info
                 self.music = music_player(key)
+
+                song_list = list(self.music_list.songs.items())
+
+                for i, items in enumerate(song_list):
+                    if self.current_file == items[0]:
+                        self.last_song_index = i
+                        break
             imgui.pop_style_var(1)
 
             imgui.pop_style_color(3)
@@ -1045,6 +1058,9 @@ class gui():
             
             for i, items in enumerate(song_list):
                 if self.current_file == items[0]:
+                    self.last_song_index = i
+                    self.need_to_refocus = True
+
                     if pressed_down or (not pressed_down and pressed_down_time > delay):
                         self.current_file, self.current_settings = song_list[min(i+1, len(song_list)-1)]
                     
@@ -1056,7 +1072,8 @@ class gui():
                     self.switch_delay += delay
                     break
             else:
-                self.current_file, self.current_settings = song_list[0]
+                self.last_song_index = max(min(self.last_song_index, len(song_list)), 0)
+                self.current_file, self.current_settings = song_list[self.last_song_index]
                 self.music = music_player(self.current_file)
         else:
             self.switch_delay = 0
