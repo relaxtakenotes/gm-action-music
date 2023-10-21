@@ -225,24 +225,24 @@ class dependency_resolver():
             return
         self.ffmpeg_status = "Installing."
         try:
-            urlretrieve("https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2023-07-04-12-50/ffmpeg-N-111332-g9ff834c2a0-win64-gpl-shared.zip", "ffmpeg.zip")
+            urlretrieve("https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl-shared.zip", "ffmpeg.zip")
             with zipfile.ZipFile("ffmpeg.zip", 'r') as zip_ref:
                 zip_ref.extractall(".")
             os.remove("ffmpeg.zip")
-            os.rename("ffmpeg-N-111332-g9ff834c2a0-win64-gpl-shared/bin/ffmpeg.exe", "ffmpeg.exe")
-            os.rename("ffmpeg-N-111332-g9ff834c2a0-win64-gpl-shared/bin/ffplay.exe", "ffplay.exe")
-            os.rename("ffmpeg-N-111332-g9ff834c2a0-win64-gpl-shared/bin/ffprobe.exe", "ffprobe.exe")
+            os.rename("ffmpeg-master-latest-win64-gpl-shared/bin/ffmpeg.exe", "ffmpeg.exe")
+            os.rename("ffmpeg-master-latest-win64-gpl-shared/bin/ffplay.exe", "ffplay.exe")
+            os.rename("ffmpeg-master-latest-win64-gpl-shared/bin/ffprobe.exe", "ffprobe.exe")
 
-            os.rename("ffmpeg-N-111332-g9ff834c2a0-win64-gpl-shared/bin/avcodec-60.dll", "avcodec-60.dll")
-            os.rename("ffmpeg-N-111332-g9ff834c2a0-win64-gpl-shared/bin/avdevice-60.dll", "avdevice-60.dll")
-            os.rename("ffmpeg-N-111332-g9ff834c2a0-win64-gpl-shared/bin/avfilter-9.dll", "avfilter-9.dll")
-            os.rename("ffmpeg-N-111332-g9ff834c2a0-win64-gpl-shared/bin/avformat-60.dll", "avformat-60.dll")
-            os.rename("ffmpeg-N-111332-g9ff834c2a0-win64-gpl-shared/bin/avutil-58.dll", "avutil-58.dll")
-            os.rename("ffmpeg-N-111332-g9ff834c2a0-win64-gpl-shared/bin/postproc-57.dll", "postproc-57.dll")
-            os.rename("ffmpeg-N-111332-g9ff834c2a0-win64-gpl-shared/bin/swresample-4.dll", "swresample-4.dll")
-            os.rename("ffmpeg-N-111332-g9ff834c2a0-win64-gpl-shared/bin/swscale-7.dll", "swscale-7.dll")
+            os.rename("ffmpeg-master-latest-win64-gpl-shared/bin/avcodec-60.dll", "avcodec-60.dll")
+            os.rename("ffmpeg-master-latest-win64-gpl-shared/bin/avdevice-60.dll", "avdevice-60.dll")
+            os.rename("ffmpeg-master-latest-win64-gpl-shared/bin/avfilter-9.dll", "avfilter-9.dll")
+            os.rename("ffmpeg-master-latest-win64-gpl-shared/bin/avformat-60.dll", "avformat-60.dll")
+            os.rename("ffmpeg-master-latest-win64-gpl-shared/bin/avutil-58.dll", "avutil-58.dll")
+            os.rename("ffmpeg-master-latest-win64-gpl-shared/bin/postproc-57.dll", "postproc-57.dll")
+            os.rename("ffmpeg-master-latest-win64-gpl-shared/bin/swresample-4.dll", "swresample-4.dll")
+            os.rename("ffmpeg-master-latest-win64-gpl-shared/bin/swscale-7.dll", "swscale-7.dll")
             
-            shutil.rmtree("ffmpeg-N-111332-g9ff834c2a0-win64-gpl-shared/")
+            shutil.rmtree("ffmpeg-master-latest-win64-gpl-shared/")
         except Exception as e:
             self.ffmpeg_status = e
             return
