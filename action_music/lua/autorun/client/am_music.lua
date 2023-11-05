@@ -58,8 +58,8 @@ end
 local stroffset = 0
 
 local function screen_text(text)
-    stroffset = stroffset + 0.02
-    debugoverlay.ScreenText(0.05, 0.6 + stroffset, text, FrameTime(), Color(255, 231, 152))
+    //stroffset = stroffset + 0.02
+    //debugoverlay.ScreenText(0.05, 0.6 + stroffset, text, FrameTime(), Color(255, 231, 152))
 end
 
 local function parse_am()
