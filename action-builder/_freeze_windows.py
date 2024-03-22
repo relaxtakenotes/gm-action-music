@@ -8,7 +8,7 @@ build_exe_options = {"packages": ["OpenGL"],
                                   '_pytest','hypothesis', "Pyinstaller",
                                   'lxml','mypy','pygments',
                                   'pycparser','psutil',
-                                  'html','curses'],
+                                  'html','curses',"scipy", "llvmlite", "sympy", "test", "numba", "setuptools", "Pyinstaller", "tk8.6", "_pytest", "docutils"],
                      "include_msvcr": True}
 
 setup(

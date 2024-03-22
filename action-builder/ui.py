@@ -1,30 +1,26 @@
+from pathlib import Path
+from threading import Thread
+from winreg import ConnectRegistry, OpenKey, HKEY_LOCAL_MACHINE, QueryValue
+from time import sleep
+from urllib.request import urlopen, urlretrieve
+from urllib.parse import urlparse, unquote
+from traceback import format_exc
+from multiprocessing import cpu_count
 import os
 import subprocess
 import shutil
-from pathlib import Path
-from threading import Thread
 import zipfile
-from winreg import ConnectRegistry, OpenKey, HKEY_LOCAL_MACHINE, QueryValue
 import re
 import json
-from time import sleep
-
-import imgui
-from sdl2 import *
 
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
-
 from just_playback import Playback
 from pydub import AudioSegment
 from pydub import effects
-
-from urllib.request import urlopen, urlretrieve
-from urllib.parse import urlparse, unquote
+from sdl2 import *
+import imgui
 import numpy
-
-from traceback import format_exc
-from multiprocessing import cpu_count
 
 INPUT_DIR = r"input/"
 OUTPUT_DIR = r"output/"
@@ -54,6 +50,8 @@ class khinsider_downloader():
     def _download(self, url):
         self.done = False
         self.started = True
+
+        url = url.split("/")[-1]
 
         i_base = "http://downloads.khinsider.com/game-soundtracks/album/"
         j_base = "http://downloads.khinsider.com"
@@ -224,28 +222,33 @@ class dependency_resolver():
         if self.ffmpeg:
             return
         self.ffmpeg_status = "Installing."
+
         try:
+            self.ffmpeg_status = "Downloading..."
             urlretrieve("https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl-shared.zip", "ffmpeg.zip")
+
+            self.ffmpeg_status = "Extracting..."
             with zipfile.ZipFile("ffmpeg.zip", 'r') as zip_ref:
                 zip_ref.extractall(".")
             os.remove("ffmpeg.zip")
-            os.rename("ffmpeg-master-latest-win64-gpl-shared/bin/ffmpeg.exe", "ffmpeg.exe")
-            os.rename("ffmpeg-master-latest-win64-gpl-shared/bin/ffplay.exe", "ffplay.exe")
-            os.rename("ffmpeg-master-latest-win64-gpl-shared/bin/ffprobe.exe", "ffprobe.exe")
-
-            os.rename("ffmpeg-master-latest-win64-gpl-shared/bin/avcodec-60.dll", "avcodec-60.dll")
-            os.rename("ffmpeg-master-latest-win64-gpl-shared/bin/avdevice-60.dll", "avdevice-60.dll")
-            os.rename("ffmpeg-master-latest-win64-gpl-shared/bin/avfilter-9.dll", "avfilter-9.dll")
-            os.rename("ffmpeg-master-latest-win64-gpl-shared/bin/avformat-60.dll", "avformat-60.dll")
-            os.rename("ffmpeg-master-latest-win64-gpl-shared/bin/avutil-58.dll", "avutil-58.dll")
-            os.rename("ffmpeg-master-latest-win64-gpl-shared/bin/postproc-57.dll", "postproc-57.dll")
-            os.rename("ffmpeg-master-latest-win64-gpl-shared/bin/swresample-4.dll", "swresample-4.dll")
-            os.rename("ffmpeg-master-latest-win64-gpl-shared/bin/swscale-7.dll", "swscale-7.dll")
             
+            self.ffmpeg_status = "Moving..."
+
+            source_dir = "ffmpeg-master-latest-win64-gpl-shared/bin/"
+            target_dir = '.'
+            file_names = os.listdir(source_dir)
+            for file_name in file_names:
+                try:
+                    shutil.move(os.path.join(source_dir, file_name), target_dir)
+                except Exception as e:
+                    self.ffmpeg_status = e
+
+            self.ffmpeg_status = "Cleaning up..."
             shutil.rmtree("ffmpeg-master-latest-win64-gpl-shared/")
         except Exception as e:
             self.ffmpeg_status = e
             return
+        
         self.ffmpeg_status = "Installed."
         self.ffmpeg = True
 
@@ -278,12 +281,17 @@ class music_processor():
         self.threads = 1
 
     def _process(self, pack_name):
+        for invalid_character in ["\\", "/", "*", "?", "\"", "<", ">", "|"]:
+            pack_name = pack_name.replace(invalid_character, "")
+
         self.progress_max = 0
+
         for key, info in self.music_list.songs.items():
             if info["action"] == "unknown":
                 continue
             self.progress_max += 1
         self.progress_curr = 0
+
         try:
             os.mkdir(f"{OUTPUT_DIR}/{pack_name}")
             os.mkdir(f"{OUTPUT_DIR}/{pack_name}/sound")
@@ -1072,7 +1080,7 @@ class gui():
                     self.switch_delay += delay
                     break
             else:
-                self.last_song_index = max(min(self.last_song_index, len(song_list)), 0)
+                self.last_song_index = max(min(self.last_song_index, len(song_list) - 1), 0)
                 self.current_file, self.current_settings = song_list[self.last_song_index]
                 self.music = music_player(self.current_file)
         else:
@@ -1154,9 +1162,10 @@ class gui():
             imgui.set_next_window_size(self.width / 2, self.height / 2)
             imgui.set_next_window_position(self.width / 4, self.height / 4)
             imgui.begin("main_bg", True, flags=self.window_flags)
-            imgui.text("Please wait until ffmpeg is installed. ")
+            imgui.text(f"Please wait until ffmpeg is installed: {self.dependency_resolver.ffmpeg_status}")
             imgui.text("Normal UI will be drawn once it's done.")
-            imgui.end()            
+            imgui.text("If you feel like it's stuck, you can install ffmpeg manually.")
+            imgui.end()
         
         self.handle_keybinds()
 
