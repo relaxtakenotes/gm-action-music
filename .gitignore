@@ -1,3 +1,6 @@
 build/
 __pycache__/
 *.exe
+action-builder-cpp/x64
+action-builder-cpp/src/x64
+action-builder-cpp/.vs

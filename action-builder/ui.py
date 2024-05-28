@@ -114,12 +114,12 @@ class khinsider_downloader():
 
             for i in range(0, len(matches), 5):
                 pthreads.append(Thread(target=parse_direct_urls, args=(matches[i:i+5],), daemon=True))
-            
+
             for thread in pthreads:
                 thread.start()
                 if not self.unsafe:
                     sleep(1)
-            
+
             while True:
                 if self.progress_matches >= self.target_matches:
                     break
@@ -135,7 +135,7 @@ class khinsider_downloader():
                     self.status = f"[Downloading] Downloaded: {filename}"
                 except Exception as e:
                     self.status = f"[Downloading] {e}: {filename}"
-                
+
                 self.progress += 1
 
                 if self.progress >= self.target:
@@ -143,7 +143,7 @@ class khinsider_downloader():
                     self.started = False
                     self.progress = 0
                     self.target = 0
-            
+
             dthreads = []
 
             self.target = len(direct_urls)
@@ -194,7 +194,7 @@ class dependency_resolver():
             self.gmpublisher_path = QueryValue(k, None).replace(" -e \"%1\"", "")
             self.gmpublisher = True
         except Exception as e:
-            pass        
+            pass
 
     def _gmpublisher(self):
         if self.gmpublisher:
@@ -231,7 +231,7 @@ class dependency_resolver():
             with zipfile.ZipFile("ffmpeg.zip", 'r') as zip_ref:
                 zip_ref.extractall(".")
             os.remove("ffmpeg.zip")
-            
+
             self.ffmpeg_status = "Moving..."
 
             source_dir = "ffmpeg-master-latest-win64-gpl-shared/bin/"
@@ -248,7 +248,7 @@ class dependency_resolver():
         except Exception as e:
             self.ffmpeg_status = e
             return
-        
+
         self.ffmpeg_status = "Installed."
         self.ffmpeg = True
 
@@ -302,7 +302,7 @@ class music_processor():
             os.mkdir(f"{OUTPUT_DIR}/{pack_name}/sound/am_music/suspense")
         except FileExistsError:
             pass
-        
+
         def edit(items):
             try:
                 for key, info in items.items():
@@ -327,19 +327,19 @@ class music_processor():
                         audio = audio.fade_in(int(info["fade_start"]*1000))
                     if info["fade_end"]:
                         audio = audio.fade_out(int(info["fade_end"]*1000))
-                    
+
                     audio.export(f'output/{pack_name}/sound/am_music/{info["action"]}/{name}.ogg', format="ogg", codec="libvorbis")
 
                     self.progress_curr += 1
             except Exception:
                 print(format_exc())
-        
+
         ethreads = []
         length = len(self.music_list.songs)
         step = length // self.threads
         for i in range(0, length, step):
             ethreads.append(Thread(target=edit, args=(dict(list(self.music_list.songs.items())[i:i+step]),), daemon=True))
-        
+
         for thread in ethreads:
             thread.start()
 
@@ -382,7 +382,7 @@ class music_player():
 
         if self.seeking:
             self.playback.pause()
-            self.playback.seek(time)        
+            self.playback.seek(time)
 
         if self.seeking and not lmb:
             self.seeking = False
@@ -435,7 +435,7 @@ class music_list():
         name = name.split("\\")
         name[-1] = name[-1].encode("ascii", errors="ignore").decode().replace(".", "")
         name = "\\".join(name) + extension
-        
+
         while True:
             try:
                 os.rename(file, name)
@@ -445,7 +445,7 @@ class music_list():
         file = name
 
         action = "unknown"
-        
+
         try:
             if file.split("\\")[4] and file.split("\\")[3] == "am_music":
                 action = file.split("\\")[4]
@@ -521,7 +521,7 @@ class gui():
 
         self.mass_cfg_end = 0
         self.mass_cfg_end_change = False
-        
+
         self.mass_cfg_normalize = False
         self.mass_cfg_normalize_change = False
 
@@ -532,7 +532,7 @@ class gui():
         self.mass_cfg_fade_end_change = False
 
         self.restore_last_session()
-    
+
     def mark_text(self):
         self.in_textbox = self.in_textbox or imgui.is_item_active()
 
@@ -665,7 +665,7 @@ class gui():
                 self.current_settings = {}
                 sleep(0.1)
                 self.music_list.mass_rename(self.mass_rename_pattern, self.mass_rename_replace)
-                
+
             imgui.end_popup()
 
         if imgui.begin_popup_modal("mass-cfg", True, flags=self.window_flags)[0]:
@@ -696,7 +696,7 @@ class gui():
             imgui.same_line()
             _, self.mass_cfg_fade_start = imgui.input_float('Fade Start', self.mass_cfg_fade_start)
             imgui.pop_id()
-            
+
             imgui.push_id("mcfe")
             _, self.mass_cfg_fade_end_change = imgui.checkbox("", self.mass_cfg_fade_end_change)
             imgui.same_line()
@@ -705,7 +705,7 @@ class gui():
 
             if imgui.button("Quit"):
                 imgui.close_current_popup()
-            
+
             imgui.same_line()
             if imgui.button("Execute"):
                 self.music = None
@@ -763,7 +763,7 @@ class gui():
             if imgui.button("No!") or (self.pressed_key(SDL_SCANCODE_ESCAPE)[1]  and not self.in_textbox):
                 imgui.close_current_popup()
             imgui.end_popup()
-        
+
         if imgui.begin_popup_modal("cfg", True, flags=self.window_flags)[0]:
             imgui.text("Miscellaneous settings that you probably shouldn't change.")
             _, self.khinsider_unsafe = imgui.checkbox("KHInsider unsafe mode", self.khinsider_unsafe)
@@ -787,7 +787,7 @@ class gui():
                 color_button_hover[3] = 0.4
                 color_button_active[3] = 0.5
                 if self.need_to_refocus:
-                    imgui.set_scroll_here()
+                    #imgui.set_scroll_here()
                     self.need_to_refocus = False
             else:
                 if count % 2 == 0:
@@ -800,14 +800,14 @@ class gui():
                     color_button_active[3] = 0.3
 
             if info["action"] == "unknown":
-                color_button[1], color_button[2] = 0.75, 0.75  
+                color_button[1], color_button[2] = 0.75, 0.75
                 color_button_hover[1], color_button_hover[2] = 0.75, 0.75
                 color_button_active[1], color_button_active[2] = 0.75, 0.75
             else:
-                color_button[0], color_button[2] = 0.75, 0.75 
-                color_button_hover[0], color_button_hover[2] = 0.75, 0.75  
-                color_button_active[0], color_button_active[2] = 0.75, 0.75                
-            
+                color_button[0], color_button[2] = 0.75, 0.75
+                color_button_hover[0], color_button_hover[2] = 0.75, 0.75
+                color_button_active[0], color_button_active[2] = 0.75, 0.75
+
             imgui.push_style_color(imgui.COLOR_BUTTON, color_button[0], color_button[1], color_button[2], color_button[3])
             imgui.push_style_color(imgui.COLOR_BUTTON_HOVERED, color_button_hover[0], color_button_hover[1], color_button_hover[2], color_button_hover[3])
             imgui.push_style_color(imgui.COLOR_BUTTON_ACTIVE, color_button_active[0], color_button_active[1], color_button_active[2], color_button_active[3])
@@ -859,7 +859,7 @@ class gui():
         if imgui.begin_popup_modal("ytdownload", True, flags=self.window_flags)[0]:
             if not self.dependency_resolver.ytdlp:
                 imgui.text("yt-dlp is not installed")
-                
+
                 if imgui.button("Install"):
                     self.dependency_resolver.install_ytdlp()
 
@@ -919,7 +919,7 @@ class gui():
         imgui.begin_child("main", 0, -42, border=True)
         if self.current_file and self.current_settings:
             imgui.spacing()
-            
+
             imgui.push_item_width(imgui.get_content_region_available_width())
             imgui.push_id("newname")
             _, self.current_settings["name"] = imgui.input_text('Name', self.current_settings["name"], 256)
@@ -955,19 +955,19 @@ class gui():
                 duration = self.music.playback.duration
 
             imgui.spacing()
-            
+
             if imgui.button("Mark Start"):
                 self.current_settings["start"] = time
-            
+
             imgui.same_line()
 
             if imgui.button("Mark End"):
                 self.current_settings["end"] = time
-            
+
             imgui.same_line()
 
             imgui.text(f"Start: {self.current_settings['start']} | End: {self.current_settings['end']}")
-            
+
             imgui.spacing()
 
             imgui.push_item_width(50)
@@ -1038,7 +1038,7 @@ class gui():
         self.draw_song_configuration()
         self.draw_footer()
         imgui.end()
-    
+
     def pressed_key(self, code):
         if self.keyboard_state[code] == self.last_key_state.get(code):
             if self.keyboard_state[code]:
@@ -1063,7 +1063,7 @@ class gui():
 
             if len(song_list) <= 0:
                 return
-            
+
             for i, items in enumerate(song_list):
                 if self.current_file == items[0]:
                     self.last_song_index = i
@@ -1071,7 +1071,7 @@ class gui():
 
                     if pressed_down or (not pressed_down and pressed_down_time > delay):
                         self.current_file, self.current_settings = song_list[min(i+1, len(song_list)-1)]
-                    
+
                     if pressed_up or (not pressed_up and pressed_up_time > delay):
                         self.current_file, self.current_settings = song_list[max(i-1, 0)]
 
@@ -1085,7 +1085,7 @@ class gui():
                 self.music = music_player(self.current_file)
         else:
             self.switch_delay = 0
-        
+
         if self.current_file and self.current_settings:
             _, pressed_normalize = self.pressed_key(SDL_SCANCODE_Q)
 
@@ -1108,25 +1108,25 @@ class gui():
 
             if pressed_normalize:
                 self.current_settings["normalize"] = not self.current_settings["normalize"]
-            
+
             if pressed_background:
-                self.current_settings["action"] = "background" 
+                self.current_settings["action"] = "background"
             if pressed_battle:
-                self.current_settings["action"] = "battle" 
+                self.current_settings["action"] = "battle"
             if pressed_battle_intensive:
-                self.current_settings["action"] = "battle_intensive" 
+                self.current_settings["action"] = "battle_intensive"
             if pressed_suspense:
                 self.current_settings["action"] = "suspense"
-            
+
             if pressed_toggle:
                 self.music.toggle()
-            
+
             if self.music.ready:
                 if pressed_backwards or (pressed_backwards_time > 0.5):
                     self.music.playback.seek(self.music.playback.curr_pos - max((pressed_backwards_time * pressed_backwards_time) / 10, 0.1))
                 if pressed_forward or (pressed_forward_time > 0.5):
                     self.music.playback.seek(self.music.playback.curr_pos + max((pressed_forward_time * pressed_forward_time) / 10, 0.1))
-                
+
                 if pressed_mark_start:
                     self.current_settings["start"] = self.music.playback.curr_pos
                 if pressed_mark_end:
@@ -1155,6 +1155,8 @@ class gui():
 
         self.push_style()
 
+        #imgui.show_test_window()
+
         if self.dependency_resolver.ffmpeg:
             self.draw_top_segment()
             self.draw_bottom_segment()
@@ -1166,7 +1168,7 @@ class gui():
             imgui.text("Normal UI will be drawn once it's done.")
             imgui.text("If you feel like it's stuck, you can install ffmpeg manually.")
             imgui.end()
-        
+
         self.handle_keybinds()
 
         self.pop_style()
