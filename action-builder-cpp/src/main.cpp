@@ -178,7 +178,7 @@ int filter(unsigned int code, struct _EXCEPTION_POINTERS* ep) {
     char exception_message[1024];
 
     snprintf(exception_message, sizeof(exception_message),
-        "Exception Address: %p\nException Code: %lu\nException Flags: %lu\n",
+        "Exception Address: %p\nException Code: %ld\nException Flags: %ld\n",
         ep->ExceptionRecord->ExceptionAddress,
         ep->ExceptionRecord->ExceptionCode,
         ep->ExceptionRecord->ExceptionFlags

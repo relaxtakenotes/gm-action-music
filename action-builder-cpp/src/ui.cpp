@@ -177,22 +177,59 @@ namespace ui {
 	void draw_list_controls() {
 		if (ImGui::BeginChild("list_controls", ImVec2(size.x - 16, 38), ImGuiChildFlags_Border)) {
 			static const std::vector<std::string> buttons = {
-				"New", "reset-all",
-				"Reset selected", "reset-current",
-				"Remove selected", "remove-selected",
-				"Output", "open-output",
-				"Input", "open-input",
-				"Rename All", "mass-rename",
-				"Configure All", "mass-cfg",
-				"Config", "internal-cfg"
+				"New", "reset-all", "0",
+				"Reset selected", "reset-current", "0",
+				"Remove selected", "remove-selected", "76", // SDL_SCANCODE_DELETE
+				"Output", "open-output", "0",
+				"Input", "open-input", "0",
+				"Rename All", "mass-rename", "0",
+				"Configure All", "mass-cfg", "0",
+				"Config", "internal-cfg", "0",
+				"Dupe", "dupe", "78"
 			};
 			
-			for (size_t i = 0; i < buttons.size(); i = i + 2) {
+			for (size_t i = 0; i < buttons.size(); i = i + 3) {
 				if (i != 0) ImGui::SameLine();
 
 				if (ImGui::Button(buttons[i].c_str())) 
 					ImGui::OpenPopup(buttons[i + 1].c_str());
+
+				auto code = atoi(buttons[i + 2].c_str());
+				if (code != 0 && is_key_pressed(code).pressed)
+					ImGui::OpenPopup(buttons[i + 1].c_str());
 			}
+		}
+
+		if (ImGui::BeginPopupModal("dupe", NULL, window_flags)) {
+			auto curr_song = songs::list[current_song_index];
+
+			auto path = curr_song.path;
+			auto name = remove_extension(get_filename(path));
+			auto target_path = replace_substr(name, name + " - Copy", path);
+
+			if (!file_exists(target_path)) {
+				fs::copy_file(path, target_path);
+
+				// if the filewatcher already added it, which is unlikely
+				auto fw_idx = songs::find_song_by_attr("path", target_path);
+				if (fw_idx > 0)
+					songs::remove(fw_idx);
+
+				songs::add(
+					get_filename(target_path),
+					curr_song.action, 
+					target_path,
+					curr_song.normalize, 
+					curr_song.start, 
+					curr_song.end, 
+					curr_song.fade_start, 
+					curr_song.fade_end, 
+					current_song_index + 1
+				);
+			}
+			
+			ImGui::CloseCurrentPopup();
+			ImGui::EndPopup();
 		}
 
 		if (ImGui::BeginPopupModal("open-input", NULL, window_flags)) {
@@ -210,7 +247,7 @@ namespace ui {
 		if (ImGui::BeginPopupModal("reset-all", NULL, window_flags)) {
 			ImGui::Text("This will wipe all the current configuration and you wont be able to return it. Continue?");
 
-			if (ImGui::Button("Yes!")) {
+			if (ImGui::Button("Yes!") || is_key_pressed(SDL_SCANCODE_RETURN).pressed) {
 				songs::list.clear();
 				songs::save();
 				songs::init();
@@ -219,7 +256,7 @@ namespace ui {
 
 			ImGui::SameLine();
 
-			if (ImGui::Button("No..."))
+			if (ImGui::Button("No...") || is_key_pressed(SDL_SCANCODE_ESCAPE).pressed)
 				ImGui::CloseCurrentPopup();
 
 			ImGui::EndPopup();
@@ -228,7 +265,7 @@ namespace ui {
 		if (ImGui::BeginPopupModal("reset-current", NULL, window_flags)) {
 			ImGui::Text("This will erase the configuration of your current song. Continue?");
 
-			if (ImGui::Button("Yes!")) {
+			if (ImGui::Button("Yes!") || is_key_pressed(SDL_SCANCODE_RETURN).pressed) {
 				const int i = current_song_index;
 
 				songs::list[i].action = "unknown";
@@ -246,7 +283,7 @@ namespace ui {
 
 			ImGui::SameLine();
 
-			if (ImGui::Button("No..."))
+			if (ImGui::Button("No...") || is_key_pressed(SDL_SCANCODE_ESCAPE).pressed)
 				ImGui::CloseCurrentPopup();
 			
 			ImGui::EndPopup();
@@ -254,7 +291,7 @@ namespace ui {
 
 		if (ImGui::BeginPopupModal("remove-selected", NULL, window_flags)) {
 			ImGui::Text("Are you sure? You won't be able to return this file.");
-			if (ImGui::Button("Yes!")) {
+			if (ImGui::Button("Yes!") || is_key_pressed(SDL_SCANCODE_RETURN).pressed) {
 				const int backup = current_song_index;
 				const std::string backup_path = songs::list[backup].path;
 
@@ -286,7 +323,7 @@ namespace ui {
 
 			ImGui::SameLine();
 
-			if (ImGui::Button("No..."))
+			if (ImGui::Button("No...") || is_key_pressed(SDL_SCANCODE_ESCAPE).pressed)
 				ImGui::CloseCurrentPopup();
 			
 			ImGui::EndPopup();
@@ -417,7 +454,6 @@ namespace ui {
 					color_button.w = 0.4f;
 					color_button_hover.w = 0.4f;
 					color_button_active.w = 0.4f;
-					// todo: refocus
 				} else {
 					if (i % 2 == 0) {
 						color_button.w = 0.2f;

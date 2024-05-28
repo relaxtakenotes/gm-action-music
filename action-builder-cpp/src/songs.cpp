@@ -40,7 +40,34 @@ namespace songs {
 		unit.fade_start = fade_start;
 		unit.fade_end = fade_end;
 
-		list.push_back(unit);
+		//if (pos == 0)
+			list.push_back(unit);
+		//else
+		//	list.insert(list.begin() + pos, unit);
+	}
+
+	void add(std::string name,
+		std::string action,
+		std::string path,
+		bool normalize,
+		float start,
+		float end,
+		float fade_start,
+		float fade_end,
+		int pos)
+	{
+		song unit;
+
+		unit.name = name;
+		unit.action = action;
+		unit.path = path;
+		unit.normalize = normalize;
+		unit.start = start;
+		unit.end = end;
+		unit.fade_start = fade_start;
+		unit.fade_end = fade_end;
+
+		list.insert(list.begin() + pos, unit);
 	}
 
 	void remove(int idx) {

@@ -29,6 +29,17 @@ namespace songs {
 		float fade_start,
 		float fade_end
 	);
+	void add(
+		std::string name,
+		std::string action,
+		std::string path,
+		bool normalize,
+		float start,
+		float end,
+		float fade_start,
+		float fade_end,
+		int pos
+	);
 	void remove(int idx);
 	int find_song_by_attr(std::string attr_type, std::string query);
 	void save();
