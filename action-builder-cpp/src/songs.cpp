@@ -142,6 +142,7 @@ namespace songs {
 				break;
 			}
 			default:
+				break;
 				//std::cout << "Should never happen!" << std::endl;		
 			}
 		}

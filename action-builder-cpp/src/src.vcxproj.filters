@@ -125,8 +125,5 @@
     <ClInclude Include="khinsider.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="tinyutf8.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
   </ItemGroup>
 </Project>

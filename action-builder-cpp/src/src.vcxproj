@@ -186,7 +186,6 @@
     <ClInclude Include="playback.h" />
     <ClInclude Include="processor.h" />
     <ClInclude Include="songs.h" />
-    <ClInclude Include="tinyutf8.h" />
     <ClInclude Include="ui.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
