@@ -201,31 +201,33 @@ namespace ui {
 		}
 
 		if (ImGui::BeginPopupModal("dupe", NULL, window_flags)) {
-			auto curr_song = songs::list[current_song_index];
+			if (songs::list.size() > 0) {
+				auto curr_song = songs::list[current_song_index];
 
-			auto path = curr_song.path;
-			auto name = remove_extension(get_filename(path));
-			auto target_path = replace_substr(name, name + " - Copy", path);
+				auto path = curr_song.path;
+				auto name = remove_extension(get_filename(path));
+				auto target_path = replace_substr(name, name + " - Copy", path);
 
-			if (!file_exists(target_path)) {
-				fs::copy_file(path, target_path);
+				if (!file_exists(target_path)) {
+					fs::copy_file(path, target_path);
 
-				// if the filewatcher already added it, which is unlikely
-				auto fw_idx = songs::find_song_by_attr("path", target_path);
-				if (fw_idx > 0)
-					songs::remove(fw_idx);
+					// if the filewatcher already added it, which is unlikely
+					auto fw_idx = songs::find_song_by_attr("path", target_path);
+					if (fw_idx > 0)
+						songs::remove(fw_idx);
 
-				songs::add(
-					get_filename(target_path),
-					curr_song.action, 
-					target_path,
-					curr_song.normalize, 
-					curr_song.start, 
-					curr_song.end, 
-					curr_song.fade_start, 
-					curr_song.fade_end, 
-					current_song_index + 1
-				);
+					songs::add(
+						get_filename(target_path),
+						curr_song.action, 
+						target_path,
+						curr_song.normalize, 
+						curr_song.start, 
+						curr_song.end, 
+						curr_song.fade_start, 
+						curr_song.fade_end, 
+						current_song_index + 1
+					);
+				}
 			}
 			
 			ImGui::CloseCurrentPopup();
