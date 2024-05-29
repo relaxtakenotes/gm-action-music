@@ -1,23 +1,36 @@
-﻿local amready = false
+﻿// dont kill me for this code omgomgomgomgogm
+
+local fade_time = CreateConVar("cl_am_fadetime_mult", "0.5", FCVAR_ARCHIVE, "How fast the music will change.", 0.01, 10)
+local continue_songs = CreateConVar("cl_am_continue_songs", "1", FCVAR_ARCHIVE, "Continue songs where we left off.")
+local reset_last_duration = CreateConVar("cl_am_reshuffle_period", "60", FCVAR_ARCHIVE, "Shuffle some songs in a given period. (0 is disabled)")
+local reset_current_pack = CreateConVar("cl_am_reshuffle_pack_period", "300", FCVAR_ARCHIVE, "Shuffle the packs in a given period. (0 is disabled)")
+local force_type = CreateConVar("cl_am_force_type", "0", FCVAR_ARCHIVE, "If you got some RP scenario where you want only one type of music playing you can change this. 0 - Disabled. 1 - Background. 2 - Battle. 3 - Intense Battle (Boss Battle). 4 - Suspense")
+local notify = CreateConVar("cl_am_notify", "0", FCVAR_ARCHIVE, "Notifications!")
+local am_enabled_global = CreateConVar("cl_am_enabled_global", "1", FCVAR_ARCHIVE, "Obvious!")
+
+local amready = false
+
 am_current_song = nil
 am_current_channel = nil
 local past_channel = nil
 local channel_locked = false
+
 local songs = {}
 local chosen_songs = {}
-chosen_songs["battle"] = NULL
-chosen_songs["battle_intensive"] = NULL
-chosen_songs["background"] = NULL
-chosen_songs["suspense"] = NULL
+
+
+local current_pack = ""
+local packs = {}
+
+chosen_songs["battle"] = {}
+chosen_songs["battle_intensive"] = {}
+chosen_songs["background"] = {}
+chosen_songs["suspense"] = {}
+
 local last_type = ""
 local timer_name_counter = 0
 local last_forget_time = 0
-local fade_time = CreateConVar("cl_am_fadetime_mult", "0.5", FCVAR_ARCHIVE, "How fast the music will change.", 0.01, 10)
-local continue_songs = CreateConVar("cl_am_continue_songs", "1", FCVAR_ARCHIVE, "Continue songs where we left off.")
-local reset_last_duration = CreateConVar("cl_am_reshuffle_period", "60", FCVAR_ARCHIVE, "Shuffle some songs in a given period. (0 is disabled)")
-local force_type = CreateConVar("cl_am_force_type", "0", FCVAR_ARCHIVE, "If you got some RP scenario where you want only one type of music playing you can change this. 0 - Disabled. 1 - Background. 2 - Battle. 3 - Intense Battle (Boss Battle). 4 - Suspense")
-local notify = CreateConVar("cl_am_notify", "0", FCVAR_ARCHIVE, "Notifications!")
-local am_enabled_global = CreateConVar("cl_am_enabled_global", "1", FCVAR_ARCHIVE, "Obvious!")
+local last_pack_forget_time = 0
 
 cvars.AddChangeCallback("cl_am_enabled_global", function(convar_name, value_old, value_new)
     if tonumber(value_new) == 0 and IsValid(am_current_channel) then
@@ -27,7 +40,6 @@ end)
 
 local am_enabled = {}
 local volume_scale = {}
-
 
 for _, typee in ipairs({"battle", "background", "battle_intensive", "suspense"}) do
     volume_scale[typee] = CreateConVar("cl_am_volume_" .. typee, "1", FCVAR_ARCHIVE, "Volume. Epic.")
@@ -40,6 +52,8 @@ for _, typee in ipairs({"battle", "background", "battle_intensive", "suspense"})
 
             return
         end
+
+        if not am_current_song then return end
 
         if am_current_song.typee == typee then
             am_current_channel:SetVolume(tonumber(value_new))
@@ -58,8 +72,55 @@ end
 local stroffset = 0
 
 local function screen_text(text)
-    //stroffset = stroffset + 0.02
-    //debugoverlay.ScreenText(0.05, 0.6 + stroffset, text, FrameTime(), Color(255, 231, 152))
+    stroffset = stroffset + 0.02
+    debugoverlay.ScreenText(0.05, 0.6 + stroffset, text, FrameTime(), Color(255, 231, 152))
+end
+
+local function get_true_keys(tbl)
+    local hold = {}
+    for key, state in pairs(tbl) do
+        if not state then continue end
+        table.insert(hold, key)
+    end
+    return hold
+end
+
+local function find_addon_name_local(path)
+    local addon_name = "Unknown"
+
+    local files, dirs = file.Find("addons/*", "GAME")
+
+    for _, dir in ipairs(dirs) do
+        if file.Exists("addons/" .. dir .. "/" ..path, "GAME") then
+            addon_name = dir
+            break
+        end
+    end
+
+    return addon_name
+end
+
+local function categorize_song_path(song)
+    local pack_name = "Unknown"
+
+    for _, addon in pairs(engine.GetAddons()) do
+        if not addon or not addon.title or not addon.wsid or not addon.mounted or not addon.downloaded then continue end
+
+        if file.Exists(song.path, addon.title) then
+            pack_name = addon.title
+            break
+        end
+    end
+
+    if pack_name == "Unknown" then pack_name = find_addon_name_local(song.path) end
+
+    if not songs[song.typee][pack_name] then
+        songs[song.typee][pack_name] = {}
+    end
+
+    packs[pack_name] = true
+
+    return pack_name
 end
 
 local function parse_am()
@@ -72,7 +133,8 @@ local function parse_am()
             song.path = search_path .. mfile
             song.last_duration = 0
             song.typee = split_str[#split_str - 1]
-            song.index = #songs[song.typee] + 1
+            local pack_category = categorize_song_path(song)
+            song.index = #songs[song.typee][pack_category] + 1
             local start_time_uf = string.match(mfile, "_%d%d_%d%d_%d%d_%d%d_")
 
             if start_time_uf then
@@ -85,7 +147,7 @@ local function parse_am()
                 song.ending = end_minutes * 60 + end_seconds
             end
 
-            table.insert(songs[song.typee], song)
+            table.insert(songs[song.typee][pack_category], song)
         end
     end
 end
@@ -107,13 +169,14 @@ local function parse_nombat()
                 song.typee = "background"
             end
 
-            song.index = #songs[song.typee] + 1
-            table.insert(songs[song.typee], song)
+            local pack_category = categorize_song_path(song)
+            song.index = #songs[song.typee][pack_category] + 1
+            table.insert(songs[song.typee][pack_category], song)
 
             if song.typee == "battle" then
                 local song_copy = table.Copy(song)
                 song_copy.typee = "battle_intensive"
-                table.insert(songs[song_copy.typee], song_copy)
+                table.insert(songs[song_copy.typee][categorize_song_path(song_copy)], song_copy)
             end
         end
     end
@@ -148,8 +211,10 @@ local function parse_dynamo(dirr)
                 song.typee = "battle"
             end
 
-            song.index = #songs[song.typee] + 1
-            table.insert(songs[song.typee], song)
+            local pack_category = categorize_song_path(song)
+            song.index = #songs[song.typee][pack_category] + 1
+
+            table.insert(songs[song.typee][pack_category], song)
         end
     end
 end
@@ -159,14 +224,25 @@ local function initialize_songs()
     songs["battle_intensive"] = {}
     songs["background"] = {}
     songs["suspense"] = {}
+
     parse_am()
     parse_nombat()
     parse_dynamo("battlemusic")
     parse_dynamo("ayykyu_dynmus")
 
+    if file.Exists("am_packs.json", "DATA") then
+        local saved_packs = util.JSONToTable(file.Read("am_packs.json", "DATA"))
+        if saved_packs then
+            for packname, saved_state in pairs(saved_packs) do
+                if packs[packname] then packs[packname] = saved_state end
+            end
+        end
+    end
+
+    current_pack = table.Random(get_true_keys(packs))
     for key, item in pairs(chosen_songs) do
-        if not songs[key] then continue end
-        chosen_songs[key] = songs[key][math.random(#songs[key])]
+        if not songs[key] or not songs[key][current_pack] then continue end
+        chosen_songs[key] = songs[key][current_pack][math.random(#songs[key][current_pack])]
     end
 
     amready = true
@@ -215,7 +291,8 @@ end
 local function am_spaghetti_stop()
     if IsValid(am_current_channel) and am_current_song and am_current_song.typee and am_current_song.index then
         pcall(function()
-            songs[am_current_song.typee][am_current_song.index].last_duration = am_current_channel:GetTime()
+            am_current_song.last_duration = am_current_channel:GetTime()
+            songs[am_current_song.typee][current_pack][am_current_song.index].last_duration = am_current_channel:GetTime()
         end)
 
         pcall(function()
@@ -241,7 +318,7 @@ local function am_play(typee, delay, force)
     if not am_enabled_global:GetBool() then return end
     if not amready then return end
     if channel_locked then return end
-    
+
     if force_type:GetInt() > 0 then
         typee = force_type_array[force_type:GetInt()]
     end
@@ -291,6 +368,11 @@ local function am_play(typee, delay, force)
     end
 
     channel_locked = true
+
+    pcall(function()
+        am_current_song.last_duration = am_current_channel:GetTime()
+        songs[am_current_song.typee][current_pack][am_current_song.index].last_duration = am_current_channel:GetTime()
+    end)
 
     timer.Simple(delay, function()
         local song = chosen_songs[typee]
@@ -344,9 +426,11 @@ local function am_play(typee, delay, force)
                 am_current_channel:SetTime(song.last_duration, true)
             end
 
-            if am_current_song.start ~= nil then
-                am_current_channel:SetTime(am_current_song.start, true)
-            end
+            pcall(function()
+                if am_current_song != nil and am_current_song.start != nil then
+                    am_current_channel:SetTime(am_current_song.start, true)
+                end
+            end)
 
             am_current_channel:SetVolume(0)
             fade_channel(am_current_channel, volume_scale[typee]:GetFloat())
@@ -417,9 +501,11 @@ hook.Add("Think", "am_think", function()
         if chosen_songs["suspense"] then
            screen_text("suspense :"..table.ToString(chosen_songs["suspense"]))
         end
+        screen_text("current_pack :"..current_pack)
+        screen_text(table.ToString(packs, "packs", true))
         stroffset = 0
     end
-    
+
     if not am_enabled_global:GetBool() then return end
     if not amready then return end
     if not am_current_song then return end
@@ -431,8 +517,10 @@ hook.Add("Think", "am_think", function()
     end
 
     if state == 0 or (IsValid(am_current_channel) and am_current_song.ending ~= nil and am_current_channel:GetTime() >= am_current_song.ending) then
-        am_current_song.last_duration = 0
-        chosen_songs[am_current_song.typee] = songs[am_current_song.typee][math.random(#songs[am_current_song.typee])]
+        if state != 0 then
+            am_current_song.last_duration = 0
+        end
+        chosen_songs[am_current_song.typee] = songs[am_current_song.typee][current_pack][math.random(#songs[am_current_song.typee][current_pack])]
 
         if LocalPlayer():Health() > 0 then
             am_play(am_current_song.typee, 0, true)
@@ -443,15 +531,24 @@ end)
 
 hook.Add("Think", "am_think_forget", function()
     if not am_enabled_global:GetBool() then return end
-    if not reset_last_duration:GetBool() then return end
 
-    if CurTime() - last_forget_time > reset_last_duration:GetInt() then
-        last_forget_time = CurTime()
+    if reset_current_pack:GetBool() then
+        if CurTime() - last_pack_forget_time > reset_current_pack:GetInt() then
+            last_pack_forget_time = CurTime()
 
-        for key, item in pairs(chosen_songs) do
-            if not songs[key] then continue end
-            if am_current_song and am_current_song.typee == key then continue end
-            chosen_songs[key] = songs[key][math.random(#songs[key])]
+            current_pack = table.Random(get_true_keys(packs))
+        end
+    end
+
+    if reset_last_duration:GetBool() then
+        if CurTime() - last_forget_time > reset_last_duration:GetInt() then
+            last_forget_time = CurTime()
+
+            for key, item in pairs(chosen_songs) do
+                if not songs[key] or not songs[key][current_pack] then continue end
+                if am_current_song and am_current_song.typee == key then continue end
+                chosen_songs[key] = songs[key][current_pack][math.random(#songs[key][current_pack])]
+            end
         end
     end
 end)
@@ -469,11 +566,119 @@ concommand.Add("cl_am_reshuffle", function(ply, cmd, args)
     if not amready then return end
 
     for key, item in pairs(chosen_songs) do
-        if not songs[key] then continue end
-        chosen_songs[key] = songs[key][math.random(#songs[key])]
+        if not songs[key] or not songs[key][current_pack] then continue end
+        chosen_songs[key] = songs[key][current_pack][math.random(#songs[key][current_pack])]
     end
 
     am_notify("Reshuffled!")
     if not IsValid(am_current_channel) then return end
     am_current_channel:Stop()
+end)
+
+concommand.Add("cl_am_reshuffle_pack", function(ply, cmd, args)
+    if not am_enabled_global:GetBool() then return end
+    if not amready then return end
+
+    current_pack = table.Random(get_true_keys(packs))
+
+    am_notify("Reshuffled the pack!")
+    //if not IsValid(am_current_channel) then return end
+    //am_current_channel:Stop()
+end)
+
+concommand.Add("cl_am_packs_configure", function(ply, cmd, args)
+    local scrw = ScrW()
+    local scrh = ScrH()
+    local ww = scrw / 4
+    local wh = scrh / 2
+
+    local m = 5
+
+    local frame = vgui.Create("DFrame")
+    frame:SetTitle("Action Music Packs")
+    frame:SetPos(scrw / 2 - ww / 2, scrh / 2 - wh / 2)
+    frame:SetSize(ww, wh)
+    frame:SetVisible(true)
+    frame:SetDraggable(true)
+    frame:SetSizable(true)
+    frame:ShowCloseButton(true)
+    frame:MakePopup()
+
+    local scroll = vgui.Create("DScrollPanel", frame)
+    scroll:Dock(FILL)
+
+    for packname, state in pairs(packs) do
+        local control = vgui.Create("DButton", scroll)
+
+        local bw = ww - 10
+        local bh = 30
+        local bpx = bw / 4
+        local bpy = bh / 2
+
+        control.DoClick = function()
+            packs[packname] = !packs[packname]
+            file.Write("am_packs.json", util.TableToJSON(packs))
+        end
+
+        local og_paint = control.Paint
+
+        control.Paint = function(self, w, h)
+            og_paint(self, w, h)
+
+            if packs[packname] then
+                control:SetText("Disable: " .. packname)
+            else
+                control:SetText("Enable: " .. packname)
+            end
+        end
+
+        if state then
+            control:SetText("Disable: " .. packname)
+        else
+            control:SetText("Enable: " .. packname)
+        end
+
+        control:SetSize(bw, bh)
+        control:SetPos(bpx, bpy)
+        control:Dock(TOP)
+        control:DockMargin(m, m, m, m)
+    end
+end)
+
+hook.Add("PopulateToolMenu", "am_settings_populate", function()
+    spawnmenu.AddToolMenuOption("Options", "am_9999_tool", "am_9999_main", "Main", nil, nil, function(panel)
+        panel:ClearControls()
+
+        panel:CheckBox("Enabled", am_enabled_global:GetName())
+        panel:CheckBox("Notifications", notify:GetName())
+        panel:CheckBox("Continue songs from where we left off", continue_songs:GetName())
+
+        panel:NumSlider("Force Type", force_type:GetName(), 0, 4, 0)
+        panel:ControlHelp("0 - Disabled. 1 - Background. 2 - Battle. 3 - Intense Battle (Boss Battle). 4 - Suspense.\nDon't spam this unless you want a loud mess.")
+
+        panel:NumSlider("Pack Shuffle Period", reset_current_pack:GetName(), 0, 1000, 0)
+        panel:NumSlider("Song Shuffle Period", reset_last_duration:GetName(), 0, 1000, 0)
+
+        panel:NumSlider("Fade Time", fade_time:GetName(), 0.01, 5, 1)
+
+        for _, typee in ipairs({"battle", "background", "battle_intensive", "suspense"}) do
+            panel:CheckBox("Enabled (" .. typee .. ")", "cl_am_enabled_" .. typee)
+            panel:NumSlider("Volume (" .. typee .. ")", "cl_am_volume_" .. typee, 0, 1, 2)
+        end
+
+        panel:Button("Reshuffle Pack", "cl_am_reshuffle_pack")
+        panel:Button("Reshuffle Songs", "cl_am_reshuffle")
+
+        panel:Button("Initialize songs (Will Lag!)", "cl_am_initialize_songs")
+    end)
+
+    spawnmenu.AddToolMenuOption("Options", "am_9999_tool", "am_9999_packs", "Packs", nil, nil, function(panel)
+        panel:ClearControls()
+
+        panel:Button("Open Packs Configuration", "cl_am_packs_configure")
+    end)
+end)
+
+hook.Add("AddToolMenuCategories", "am_add_category", function()
+    spawnmenu.AddToolCategory("Options", "am_9999_tool", "Action Music")
 end)

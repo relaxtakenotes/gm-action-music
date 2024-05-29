@@ -149,7 +149,7 @@ hook.Add("FinishMove", "am_threat_loop", function(ply, mv)
     for i, data in ipairs(recent_shots) do
         data.time = data.time - 1
 
-        if not IsValid(data.entity) or data.time <= 0 or data.entity:Health() <= 0 then
+        if data.time <= 0 or data.entity:Health() <= 0 then
             table.remove(recent_shots, i)
             continue
         end
@@ -215,19 +215,19 @@ hook.Add("FinishMove", "am_threat_loop", function(ply, mv)
         ply.am_targeted_timer = 0
     end
 
-    //if GetConVar("developer"):GetBool() then
-    //    screen_text("am_timeout: "..tostring(ply.am_timeout))
-    //    screen_text("am_active_enemies: "..table.ToString(ply.am_active_enemies))
-    //    screen_text("am_is_targeted_prev: "..tostring(ply.am_is_targeted_prev))
-    //    screen_text("am_hidden_prev: "..tostring(ply.am_hidden_prev))
-    //    screen_text("am_boss_fight_prev: "..tostring(ply.am_boss_fight_prev))
-    //    screen_text("am_hidden: "..tostring(ply.am_hidden))
-    //    screen_text("am_enemy_amount: "..tostring(ply.am_enemy_amount))
-    //    screen_text("am_hidden_from_enemies: "..tostring(ply.am_hidden_from_enemies))
-    //    screen_text("am_should_stop_prev: "..tostring(ply.am_should_stop_prev))
-    //    screen_text("am_should_stop: "..tostring(ply.am_should_stop))
-    //    stroffset = 0
-    //end
+    if GetConVar("developer"):GetBool() then
+        screen_text("am_timeout: "..tostring(ply.am_timeout))
+        screen_text("am_active_enemies: "..table.ToString(ply.am_active_enemies))
+        screen_text("am_is_targeted_prev: "..tostring(ply.am_is_targeted_prev))
+        screen_text("am_hidden_prev: "..tostring(ply.am_hidden_prev))
+        screen_text("am_boss_fight_prev: "..tostring(ply.am_boss_fight_prev))
+        screen_text("am_hidden: "..tostring(ply.am_hidden))
+        screen_text("am_enemy_amount: "..tostring(ply.am_enemy_amount))
+        screen_text("am_hidden_from_enemies: "..tostring(ply.am_hidden_from_enemies))
+        screen_text("am_should_stop_prev: "..tostring(ply.am_should_stop_prev))
+        screen_text("am_should_stop: "..tostring(ply.am_should_stop))
+        stroffset = 0
+    end
     
     net.Start("am_threat_event", false)
     net.WriteBool(ply.am_is_targeted)
@@ -251,6 +251,7 @@ hook.Add("EntityFireBullets", "am_detect_action", function(attacker, data)
 
         if entity == NULL then
             entity = attacker
+            weaponIsWeird = true
         end
     end
 
