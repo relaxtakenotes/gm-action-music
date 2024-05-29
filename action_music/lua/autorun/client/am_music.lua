@@ -300,7 +300,7 @@ local function am_spaghetti_stop()
             fade_channel(past_channel, 0)
         end)
 
-        am_current_song = nil
+        //am_current_song = nil
     end
 end
 
@@ -378,7 +378,7 @@ local function am_play(typee, delay, force)
         local song = chosen_songs[typee]
 
         if not continue_songs:GetBool() then
-            song = songs[typee][math.random(#songs[typee])]
+            song = songs[typee][current_pack][math.random(#songs[typee][current_pack])]
         end
 
         if song == nil then
