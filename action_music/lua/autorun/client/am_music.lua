@@ -214,9 +214,13 @@ local function shuffle_pack()
     current_pack = table.Random(get_true_keys(packs))
 end
 
-local function pick_chosen_songs()
+local function pick_chosen_songs(ignore_current)
+    //debug.Trace()
     for key, item in pairs(chosen_songs) do
         if not songs[key] or not songs[key][current_pack] then continue end
+
+        if ignore_current and current_song and current_song.typee == key then continue end
+
         chosen_songs[key] = songs[key][current_pack][math.random(#songs[key][current_pack])]
     end
 end
@@ -246,9 +250,10 @@ local function initialize_songs()
     end
 
     shuffle_pack()
-    pick_chosen_songs()
+    pick_chosen_songs(false)
 
     amready = true
+    channel_locked = false
 end
 
 concommand.Add("cl_am_verify_songs", function()
@@ -295,6 +300,7 @@ end
 local function am_spaghetti_stop(target_channel, typee, pack, index)
     if IsValid(target_channel) then
         if typee and pack and index != nil then
+            current_song.last_duration = target_channel:GetTime()
             songs[typee][pack][index].last_duration = target_channel:GetTime()
         end
 
@@ -372,6 +378,8 @@ local function am_play(typee, delay, force)
         end
     end
 
+    //if last_type == typee then return end
+
     if chosen_songs[typee] == nil or chosen_songs[typee] == NULL then
         am_notify("There are no songs of type " .. typee .. ". Please include something in it!")
         return
@@ -382,8 +390,8 @@ local function am_play(typee, delay, force)
         return
     end
 
-    if not IsValid(chosen_songs) or not chosen_songs[typee] then
-        pick_chosen_songs()
+    if not chosen_songs or not chosen_songs[typee] then
+        pick_chosen_songs(true)
     end
 
     local song = chosen_songs[typee]
@@ -396,7 +404,7 @@ local function am_play(typee, delay, force)
         return
     end
 
-    if current_song and current_song.path == song.path then
+    if IsValid(current_channel) and current_song and current_song.path == song.path then
         print("[am_play] current song path and new song paths match")
         return
     end
@@ -422,11 +430,17 @@ local function am_play(typee, delay, force)
 
             am_notify("Now playing: " .. name)
 
-            if current_song then
+            if current_song and IsValid(current_channel) then
+                current_song.last_duration = current_channel:GetTime()
+                if songs[current_song.type] and songs[current_song.type][current_pack] and songs[current_song.type][current_pack][current_song.index] then // current_pack can get set to a different value, while current song stays unchanged. todo: maaaybee fix this? doesnt seem to impact shit too much tho
+                    songs[current_song.type][current_pack][current_song.index].last_duration = current_channel:GetTime()
+                end
                 am_spaghetti_stop(current_channel, current_song.type, current_pack, current_song.index)
             end
+
             current_song = song
             current_channel = station
+            last_type = typee
 
             if current_song.start then
                 current_channel:SetTime(current_song.start, true)
@@ -446,14 +460,18 @@ cvars.AddChangeCallback(force_type:GetName(), function()
     if not enabled:GetBool() then return end
     if not amready then return end
 
-    last_type = nil -- let the networked stuff take over when we're done
-    if current_song then
-        am_spaghetti_stop(current_channel, current_song.type, current_pack, current_song.index)
-    end
+    //last_type = nil -- let the networked stuff take over when we're done
+    //if current_song then
+    //    am_spaghetti_stop(current_channel, current_song.type, current_pack, current_song.index)
+    //end
 
     if force_type:GetInt() <= 0 then return end
 
     local typee = force_type_array[force_type:GetInt()]
+
+    //if last_type == typee then return end
+    //last_type = typee
+
     am_play(typee, 0, false)
 end)
 
@@ -488,8 +506,8 @@ net.Receive("am_threat_event", function()
     end
 
     if last_type == typee then return end
-
     last_type = typee
+
     am_play(typee, 0, false)
 end)
 
@@ -535,8 +553,8 @@ hook.Add("Think", "am_think", function()
         //    return
         //end
 
-        chosen_songs[current_song.typee] = songs[current_song.typee][current_pack][math.random(#songs[current_song.typee][current_pack])]
-
+        //chosen_songs[current_song.typee] = songs[current_song.typee][current_pack][math.random(#songs[current_song.typee][current_pack])]
+        //last_type = nil
         if LocalPlayer():Health() > 0 then
             am_play(current_song.typee, 0, true)
         end
@@ -556,7 +574,7 @@ hook.Add("Think", "am_think_forget", function()
     if reset_last_duration:GetBool() then
         if CurTime() - last_forget_time > reset_last_duration:GetInt() then
             last_forget_time = CurTime()
-            pick_chosen_songs()
+            pick_chosen_songs(false)
         end
     end
 end)
