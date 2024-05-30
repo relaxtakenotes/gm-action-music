@@ -6,26 +6,17 @@ local reset_last_duration = CreateConVar("cl_am_reshuffle_period", "60", FCVAR_A
 local reset_current_pack = CreateConVar("cl_am_reshuffle_pack_period", "300", FCVAR_ARCHIVE, "Shuffle the packs in a given period. (0 is disabled)")
 local force_type = CreateConVar("cl_am_force_type", "0", FCVAR_ARCHIVE, "If you got some RP scenario where you want only one type of music playing you can change this. 0 - Disabled. 1 - Background. 2 - Battle. 3 - Intense Battle (Boss Battle). 4 - Suspense")
 local notify = CreateConVar("cl_am_notify", "0", FCVAR_ARCHIVE, "Notifications!")
-local am_enabled_global = CreateConVar("cl_am_enabled_global", "1", FCVAR_ARCHIVE, "Obvious!")
-
-local amready = false
-
-am_current_song = nil
-am_current_channel = nil
-local past_channel = nil
-local channel_locked = false
+local enabled = CreateConVar("cl_am_enabled_global", "1", FCVAR_ARCHIVE, "Obvious!")
 
 local songs = {}
 local chosen_songs = {}
-
-
-local current_pack = ""
-local packs = {}
-
 chosen_songs["battle"] = {}
 chosen_songs["battle_intensive"] = {}
 chosen_songs["background"] = {}
 chosen_songs["suspense"] = {}
+
+local packs = {}
+local current_pack = ""
 
 local last_type = ""
 local timer_name_counter = 0
@@ -33,8 +24,8 @@ local last_forget_time = 0
 local last_pack_forget_time = 0
 
 cvars.AddChangeCallback("cl_am_enabled_global", function(convar_name, value_old, value_new)
-    if tonumber(value_new) == 0 and IsValid(am_current_channel) then
-        am_current_channel:Stop()
+    if tonumber(value_new) == 0 and IsValid(current_channel) then
+        current_channel:Stop()
     end
 end)
 
@@ -53,18 +44,18 @@ for _, typee in ipairs({"battle", "background", "battle_intensive", "suspense"})
             return
         end
 
-        if not am_current_song then return end
+        if not current_song then return end
 
-        if am_current_song.typee == typee then
-            am_current_channel:SetVolume(tonumber(value_new))
+        if current_song.typee == typee then
+            current_channel:SetVolume(tonumber(value_new))
         end
     end)
 
     cvars.AddChangeCallback("cl_am_enabled_" .. typee, function(convar_name, value_old, value_new)
-        if not am_current_song then return end
+        if not current_song then return end
 
-        if am_current_song.typee == typee and tonumber(value_new) == 0 and IsValid(am_current_channel) then
-            am_current_channel:Stop()
+        if current_song.typee == typee and tonumber(value_new) == 0 and IsValid(current_channel) then
+            current_channel:Stop()
         end
     end)
 end
@@ -219,6 +210,21 @@ local function parse_dynamo(dirr)
     end
 end
 
+local function shuffle_pack()
+    current_pack = table.Random(get_true_keys(packs))
+end
+
+local function pick_chosen_songs()
+    for key, item in pairs(chosen_songs) do
+        if not songs[key] or not songs[key][current_pack] then continue end
+        chosen_songs[key] = songs[key][current_pack][math.random(#songs[key][current_pack])]
+    end
+end
+
+local function pick_song(typee)
+    return songs[typee][current_pack][math.random(#songs[typee][current_pack])]
+end
+
 local function initialize_songs()
     songs["battle"] = {}
     songs["battle_intensive"] = {}
@@ -239,11 +245,8 @@ local function initialize_songs()
         end
     end
 
-    current_pack = table.Random(get_true_keys(packs))
-    for key, item in pairs(chosen_songs) do
-        if not songs[key] or not songs[key][current_pack] then continue end
-        chosen_songs[key] = songs[key][current_pack][math.random(#songs[key][current_pack])]
-    end
+    shuffle_pack()
+    pick_chosen_songs()
 
     amready = true
 end
@@ -267,7 +270,8 @@ concommand.Add("cl_am_verify_songs", function()
 end)
 
 local function fade_channel(channel, to)
-    if not am_enabled_global:GetBool() then return end
+    if not enabled:GetBool() then return end
+
     local from = channel:GetVolume()
     local lerp_t = 0
     timer_name_counter = timer_name_counter + 1
@@ -288,19 +292,12 @@ local function fade_channel(channel, to)
     end)
 end
 
-local function am_spaghetti_stop()
-    if IsValid(am_current_channel) and am_current_song and am_current_song.typee and am_current_song.index then
-        pcall(function()
-            am_current_song.last_duration = am_current_channel:GetTime()
-            songs[am_current_song.typee][current_pack][am_current_song.index].last_duration = am_current_channel:GetTime()
-        end)
+local function am_spaghetti_stop(target_channel)
+    if IsValid(target_channel) then
+        songs[current_song.typee][current_pack][current_song.index].last_duration = target_channel:GetTime()
 
-        pcall(function()
-            past_channel = am_current_channel
-            fade_channel(past_channel, 0)
-        end)
-
-        //am_current_song = nil
+        past_channel = target_channel
+        fade_channel(past_channel, 0)
     end
 end
 
@@ -315,7 +312,7 @@ end
 local force_type_array = {"background", "battle", "battle_intensive", "suspense"}
 
 local function am_play(typee, delay, force)
-    if not am_enabled_global:GetBool() then return end
+    if not enabled:GetBool() then return end
     if not amready then return end
     if channel_locked then return end
 
@@ -329,8 +326,7 @@ local function am_play(typee, delay, force)
 
     if not am_enabled[typee]:GetBool() then
         if typee == "background" then
-            am_spaghetti_stop()
-
+            am_spaghetti_stop(current_channel)
             return
         end
 
@@ -339,8 +335,7 @@ local function am_play(typee, delay, force)
         end
 
         if typee == "battle" and not am_enabled["background"]:GetBool() then
-            am_spaghetti_stop()
-
+            am_spaghetti_stop(current_channel)
             return
         end
 
@@ -363,47 +358,36 @@ local function am_play(typee, delay, force)
 
     if chosen_songs[typee] == nil or chosen_songs[typee] == NULL then
         am_notify("There are no songs of type " .. typee .. ". Please include something in it!")
+        return
+    end
 
+    if not am_enabled[typee]:GetBool() then
+        return
+    end
+
+    if not IsValid(chosen_songs) or not chosen_songs[typee] then
+        pick_chosen_songs()
+    end
+
+    local song = chosen_songs[typee]
+    if not continue_songs:GetBool() then
+        song = pick_song(typee)
+    end
+
+    if not song then
+        return
+    end
+
+    if current_song and current_song.path == song.path then
         return
     end
 
     channel_locked = true
 
-    pcall(function()
-        am_current_song.last_duration = am_current_channel:GetTime()
-        songs[am_current_song.typee][current_pack][am_current_song.index].last_duration = am_current_channel:GetTime()
-    end)
-
     timer.Simple(delay, function()
-        local song = chosen_songs[typee]
-
-        if not continue_songs:GetBool() then
-            song = songs[typee][current_pack][math.random(#songs[typee][current_pack])]
-        end
-
-        if song == nil then
-            channel_locked = false
-
-            return
-        end
-
-        if am_current_song and am_current_song.path == song.path then
-            channel_locked = false
-
-            return
-        end
-
-        am_spaghetti_stop()
-        am_current_song = song
-
-        if not am_enabled[typee]:GetBool() then
-            channel_locked = false
-
-            return
-        end
-
         sound.PlayFile(song.path, "noblock", function(station, error_code, error_string)
             channel_locked = false
+
             local split_str = string.Split(song.path, "/")
             local name = string.StripExtension(split_str[#split_str])
             local matched = string.match(name, "_%d%d_%d%d_%d%d_%d%d_")
@@ -412,44 +396,46 @@ local function am_play(typee, delay, force)
                 name = string.Replace(name, matched, "")
             end
 
-            am_notify("Now playing: " .. name)
-
             if not station then
                 am_notify("Failed to play: " .. name .. "\n\t\t\tError Code: " .. error_code .. "\n\t\t\tError: " .. error_string .. "\n\t\t\tUsually any error can be resolved by making sure your title has no unicode characters. If you can't find any, simplify it.")
-
                 return
             end
 
-            am_current_channel = station
+            am_notify("Now playing: " .. name)
 
-            if continue_songs:GetBool() then
-                am_current_channel:SetTime(song.last_duration, true)
+            am_spaghetti_stop(current_channel)
+            current_song = song
+            current_channel = station
+
+            if current_song.start then
+                current_channel:SetTime(current_song.start, true)
             end
 
-            pcall(function()
-                if am_current_song != nil and am_current_song.start != nil then
-                    am_current_channel:SetTime(am_current_song.start, true)
-                end
-            end)
+            if continue_songs:GetBool() then
+                current_channel:SetTime(song.last_duration, true)
+            end
 
-            am_current_channel:SetVolume(0)
-            fade_channel(am_current_channel, volume_scale[typee]:GetFloat())
+            current_channel:SetVolume(0)
+            fade_channel(current_channel, volume_scale[typee]:GetFloat())
         end)
     end)
 end
 
 cvars.AddChangeCallback(force_type:GetName(), function()
-    if not am_enabled_global:GetBool() then return end
+    if not enabled:GetBool() then return end
     if not amready then return end
+
     last_type = nil -- let the networked stuff take over when we're done
-    am_spaghetti_stop()
+    am_spaghetti_stop(current_channel)
+
     if force_type:GetInt() <= 0 then return end
+
     local typee = force_type_array[force_type:GetInt()]
     am_play(typee, 0, false)
 end)
 
 net.Receive("am_threat_event", function()
-    if not am_enabled_global:GetBool() then return end
+    if not enabled:GetBool() then return end
     if not amready then return end
     local is_targeted = net.ReadBool()
     local hidden = net.ReadBool()
@@ -458,8 +444,7 @@ net.Receive("am_threat_event", function()
 
     if should_stop then
         last_type = nil
-        am_spaghetti_stop()
-
+        am_spaghetti_stop(current_channel)
         return
     end
 
@@ -478,16 +463,17 @@ net.Receive("am_threat_event", function()
     end
 
     if last_type == typee then return end
+
     last_type = typee
     am_play(typee, 0, false)
 end)
 
 hook.Add("Think", "am_think", function()
-    if GetConVar("developer"):GetBool() and am_current_song then
+    if GetConVar("developer"):GetBool() and current_song then
         screen_text(
-            table.ToString(am_current_song, "am_current_song", true)
+            table.ToString(current_song, "current_song", true)
         )
-        screen_text(tostring(am_current_channel))
+        screen_text(tostring(current_channel))
         screen_text("channel_locked: "..tostring(channel_locked))
         if chosen_songs["battle"] then
             screen_text("battle :"..table.ToString(chosen_songs["battle"]))
@@ -506,49 +492,44 @@ hook.Add("Think", "am_think", function()
         stroffset = 0
     end
 
-    if not am_enabled_global:GetBool() then return end
-    if not amready then return end
-    if not am_current_song then return end
+    if not enabled:GetBool() or not amready or not current_song then return end
+
     if engine.TickCount() % 20 ~= 0 then return end
+
     local state = 0
 
-    if IsValid(am_current_channel) then
-        state = am_current_channel:GetState()
+    if IsValid(current_channel) then
+        state = current_channel:GetState()
     end
 
-    if state == 0 or (IsValid(am_current_channel) and am_current_song.ending ~= nil and am_current_channel:GetTime() >= am_current_song.ending) then
+    if state == 0 or (IsValid(current_channel) and current_song.ending ~= nil and current_channel:GetTime() >= current_song.ending) then
         if state != 0 then
-            am_current_song.last_duration = 0
+            current_song.last_duration = 0
         end
-        chosen_songs[am_current_song.typee] = songs[am_current_song.typee][current_pack][math.random(#songs[am_current_song.typee][current_pack])]
+
+        //pick_chosen_songs()
+        chosen_songs[current_song.typee] = songs[current_song.typee][current_pack][math.random(#songs[current_song.typee][current_pack])]
 
         if LocalPlayer():Health() > 0 then
-            am_play(am_current_song.typee, 0, true)
+            am_play(current_song.typee, 0, true)
         end
     end
-
 end)
 
 hook.Add("Think", "am_think_forget", function()
-    if not am_enabled_global:GetBool() then return end
+    if not enabled:GetBool() then return end
 
     if reset_current_pack:GetBool() then
         if CurTime() - last_pack_forget_time > reset_current_pack:GetInt() then
             last_pack_forget_time = CurTime()
-
-            current_pack = table.Random(get_true_keys(packs))
+            shuffle_pack()
         end
     end
 
     if reset_last_duration:GetBool() then
         if CurTime() - last_forget_time > reset_last_duration:GetInt() then
             last_forget_time = CurTime()
-
-            for key, item in pairs(chosen_songs) do
-                if not songs[key] or not songs[key][current_pack] then continue end
-                if am_current_song and am_current_song.typee == key then continue end
-                chosen_songs[key] = songs[key][current_pack][math.random(#songs[key][current_pack])]
-            end
+            pick_chosen_songs()
         end
     end
 end)
@@ -562,28 +543,21 @@ concommand.Add("cl_am_initialize_songs", function(ply, cmd, args)
 end)
 
 concommand.Add("cl_am_reshuffle", function(ply, cmd, args)
-    if not am_enabled_global:GetBool() then return end
-    if not amready then return end
+    if not enabled:GetBool() or not amready then return end
 
-    for key, item in pairs(chosen_songs) do
-        if not songs[key] or not songs[key][current_pack] then continue end
-        chosen_songs[key] = songs[key][current_pack][math.random(#songs[key][current_pack])]
-    end
+    pick_chosen_songs()
 
     am_notify("Reshuffled!")
-    if not IsValid(am_current_channel) then return end
-    am_current_channel:Stop()
+    if not IsValid(current_channel) then return end
+    current_channel:Stop()
 end)
 
 concommand.Add("cl_am_reshuffle_pack", function(ply, cmd, args)
-    if not am_enabled_global:GetBool() then return end
-    if not amready then return end
+    if not enabled:GetBool() or not amready then return end
 
-    current_pack = table.Random(get_true_keys(packs))
+    shuffle_pack()
 
     am_notify("Reshuffled the pack!")
-    //if not IsValid(am_current_channel) then return end
-    //am_current_channel:Stop()
 end)
 
 concommand.Add("cl_am_packs_configure", function(ply, cmd, args)
@@ -649,7 +623,7 @@ hook.Add("PopulateToolMenu", "am_settings_populate", function()
     spawnmenu.AddToolMenuOption("Options", "am_9999_tool", "am_9999_main", "Main", nil, nil, function(panel)
         panel:ClearControls()
 
-        panel:CheckBox("Enabled", am_enabled_global:GetName())
+        panel:CheckBox("Enabled", enabled:GetName())
         panel:CheckBox("Notifications", notify:GetName())
         panel:CheckBox("Continue songs from where we left off", continue_songs:GetName())
 
