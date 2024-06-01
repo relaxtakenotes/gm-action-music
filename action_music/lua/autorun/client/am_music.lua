@@ -372,14 +372,14 @@ local function am_play(typee, delay, force)
     if not enabled:GetBool() then return end
 
     if not amready then
-        print("[am_play] not ready")
+        //print("[am_play] not ready")
         return
     end
 
     //if not IsValid(current_channel) then channel_locked = false end
 
     if channel_locked then
-        print("[am_play] channel is locked")
+        //print("[am_play] channel is locked")
         return
     end
 
@@ -435,7 +435,7 @@ local function am_play(typee, delay, force)
     end
 
     if not am_enabled[typee]:GetBool() then
-        print("[am_play] not enabled")
+        //print("[am_play] not enabled")
         if current_song and not fading_away then
             am_spaghetti_stop(current_channel, current_song.typee, current_song.pack, current_song.index)
         end
@@ -450,12 +450,12 @@ local function am_play(typee, delay, force)
     end
 
     if not song or not song.path then
-        print("[am_play] no song")
+        //print("[am_play] no song")
         return
     end
 
     if IsValid(current_channel) and current_song and current_song.path == song.path then
-        print("[am_play] current song path and new song paths match")
+        //print("[am_play] current song path and new song paths match")
         return
     end
 
@@ -487,7 +487,7 @@ local function am_play(typee, delay, force)
             end
 
             current_song = song
-            print(current_song.typee, current_pack, current_song.index)
+            //print(current_song.typee, current_pack, current_song.index)
             if songs[current_song.typee][current_pack][current_song.index] then
                 songs[current_song.typee][current_pack][current_song.index].pack = current_pack
             end
