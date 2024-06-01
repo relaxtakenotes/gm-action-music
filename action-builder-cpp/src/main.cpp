@@ -172,13 +172,14 @@ void shutdown() {
     curl_global_cleanup();
 }
 
-int filter(unsigned int code, struct _EXCEPTION_POINTERS* ep) {
+LONG VectoredExceptionHandler(_EXCEPTION_POINTERS* ep)
+{
     auto trace = cpptrace::generate_trace().to_string();
 
     char exception_message[1024];
 
     snprintf(exception_message, sizeof(exception_message),
-        "Exception Address: %p\nException Code: %ld\nException Flags: %ld\n",
+        "Exception Address: %p\nException Code: %lu\nException Flags: %lu\n",
         ep->ExceptionRecord->ExceptionAddress,
         ep->ExceptionRecord->ExceptionCode,
         ep->ExceptionRecord->ExceptionFlags
@@ -188,12 +189,17 @@ int filter(unsigned int code, struct _EXCEPTION_POINTERS* ep) {
 
     MessageBoxA(hWindow, message.c_str(), "Unexpected Error!", MB_OK | MB_ICONERROR);
 
-    return EXCEPTION_EXECUTE_HANDLER;
-}
+    done = true;
 
+    shutdown();
+
+    return EXCEPTION_CONTINUE_SEARCH;
+}
 
 #undef main // gib back my main eviell sdl
 int main(int, char**) {
+    AddVectoredExceptionHandler(0, VectoredExceptionHandler);
+
     if (setup_sdl() < 0)
         return -1;
     
@@ -205,18 +211,14 @@ int main(int, char**) {
     ui::init();
 
     while (!done) {
-        __try {
-            handle_events();
-            new_frame();
+        handle_events();
+        new_frame();
 
-            ui::keystate = (uint8_t*)SDL_GetKeyboardState(0);
-            ui::render();
+        ui::keystate = (uint8_t*)SDL_GetKeyboardState(0);
+        ui::render();
 
-            ImGui::Render();
-            render_frame();
-        } __except(filter(GetExceptionCode(), GetExceptionInformation())) {
-            done = true;
-        }
+        ImGui::Render();
+        render_frame();
     }
 
     shutdown();
