@@ -8,6 +8,10 @@ local force_type = CreateConVar("cl_am_force_type", "0", FCVAR_ARCHIVE, "If you 
 local notify = CreateConVar("cl_am_notify", "0", FCVAR_ARCHIVE, "Notifications!")
 local enabled = CreateConVar("cl_am_enabled_global", "1", FCVAR_ARCHIVE, "Obvious!")
 
+local wish_type = "background"
+
+local fading_away = false
+
 local songs = {}
 local chosen_songs = {}
 chosen_songs["battle"] = {}
@@ -17,6 +21,9 @@ chosen_songs["suspense"] = {}
 
 local packs = {}
 local current_pack = ""
+
+local current_song = nil
+local current_channel = nil
 
 local last_type = ""
 local timer_name_counter = 0
@@ -63,8 +70,10 @@ end
 local stroffset = 0
 
 local function screen_text(text)
-    stroffset = stroffset + 0.02
-    debugoverlay.ScreenText(0.05, 0.6 + stroffset, text, FrameTime(), Color(255, 231, 152))
+    pcall(function()
+        stroffset = stroffset + 0.02
+        debugoverlay.ScreenText(0.05, 0.6 + stroffset, text, FrameTime(), Color(255, 231, 152))
+    end)
 end
 
 local function get_true_keys(tbl)
@@ -169,6 +178,12 @@ local function parse_nombat()
                 song_copy.typee = "battle_intensive"
                 table.insert(songs[song_copy.typee][categorize_song_path(song_copy)], song_copy)
             end
+
+            if song.typee == "background" then
+                local song_copy = table.Copy(song)
+                song_copy.typee = "suspense"
+                table.insert(songs[song_copy.typee][categorize_song_path(song_copy)], song_copy)
+            end
         end
     end
 end
@@ -192,7 +207,9 @@ local function parse_dynamo(dirr)
                 song.typee = "battle_intensive"
             end
 
-            if song.typee == "aliens" then continue end -- these are not good
+            if song.typee == "aliens" then
+                song.typee = "suspense"
+            end
 
             if song.typee == "cops" then
                 song.typee = "battle"
@@ -215,7 +232,6 @@ local function shuffle_pack()
 end
 
 local function pick_chosen_songs(ignore_current)
-    //debug.Trace()
     for key, item in pairs(chosen_songs) do
         if not songs[key] or not songs[key][current_pack] then continue end
 
@@ -275,13 +291,12 @@ concommand.Add("cl_am_verify_songs", function()
 end)
 
 local function fade_channel(channel, to)
-    if not enabled:GetBool() then return end
-
     local from = channel:GetVolume()
     local lerp_t = 0
     timer_name_counter = timer_name_counter + 1
     local timer_name = "fade_timer" .. timer_name_counter
 
+    fading_away = true
     timer.Create(timer_name, 0, math.huge, function()
         if not IsValid(channel) then return end
         lerp_t = math.min(1, lerp_t + fade_time:GetFloat() * FrameTime())
@@ -291,7 +306,7 @@ local function fade_channel(channel, to)
             if to == 0 then
                 channel:Stop()
             end
-
+            fading_away = false
             timer.Remove(timer_name)
         end
     end)
@@ -319,6 +334,40 @@ end
 
 local force_type_array = {"background", "battle", "battle_intensive", "suspense"}
 
+net.Receive("am_threat_event", function()
+    if not enabled:GetBool() then return end
+
+    local is_targeted = net.ReadBool()
+    local hidden = net.ReadBool()
+    local boss_fight = net.ReadBool()
+    local should_stop = net.ReadBool()
+
+    if should_stop then
+        last_type = nil
+        if current_song then
+            wish_type = "none"
+            //am_spaghetti_stop(current_channel, current_song.typee, current_pack, current_song.index)
+        end
+        return
+    end
+
+    if is_targeted then
+        if hidden then
+            typee = "suspense"
+        else
+            if boss_fight then
+                typee = "battle_intensive"
+            else
+                typee = "battle"
+            end
+        end
+    else
+        typee = "background"
+    end
+
+    wish_type = typee
+end)
+
 local function am_play(typee, delay, force)
     if not enabled:GetBool() then return end
 
@@ -334,18 +383,14 @@ local function am_play(typee, delay, force)
         return
     end
 
-    if force_type:GetInt() > 0 then
-        typee = force_type_array[force_type:GetInt()]
-    end
-
     if typee == "suspense" and not chosen_songs["suspense"] then
         typee = "battle"
     end
 
-    if not am_enabled[typee]:GetBool() then
+    if am_enabled[typee] and not am_enabled[typee]:GetBool() then
         if typee == "background" then
-            if current_song then
-                am_spaghetti_stop(current_channel, current_song.type, current_pack, current_song.index)
+            if current_song and not fading_away then
+                am_spaghetti_stop(current_channel, current_song.typee, current_song.pack, current_song.index)
             end
             return
         end
@@ -355,8 +400,8 @@ local function am_play(typee, delay, force)
         end
 
         if typee == "battle" and not am_enabled["background"]:GetBool() then
-            if current_song then
-                am_spaghetti_stop(current_channel, current_song.type, current_pack, current_song.index)
+            if current_song and not fading_away then
+                am_spaghetti_stop(current_channel, current_song.typee, current_song.pack, current_song.index)
             end
             return
         end
@@ -379,6 +424,10 @@ local function am_play(typee, delay, force)
     end
 
     //if last_type == typee then return end
+    if typee == "none" and not fading_away then
+        am_spaghetti_stop(current_channel, current_song.typee, current_song.pack, current_song.index)
+        return
+    end
 
     if chosen_songs[typee] == nil or chosen_songs[typee] == NULL then
         am_notify("There are no songs of type " .. typee .. ". Please include something in it!")
@@ -387,19 +436,20 @@ local function am_play(typee, delay, force)
 
     if not am_enabled[typee]:GetBool() then
         print("[am_play] not enabled")
+        if current_song and not fading_away then
+            am_spaghetti_stop(current_channel, current_song.typee, current_song.pack, current_song.index)
+        end
         return
     end
 
-    if not chosen_songs or not chosen_songs[typee] then
-        pick_chosen_songs(true)
-    end
+    //PrintTable(chosen_songs)
 
     local song = chosen_songs[typee]
     if not continue_songs:GetBool() then
         song = pick_song(typee)
     end
 
-    if not song then
+    if not song or not song.path then
         print("[am_play] no song")
         return
     end
@@ -432,13 +482,15 @@ local function am_play(typee, delay, force)
 
             if current_song and IsValid(current_channel) then
                 current_song.last_duration = current_channel:GetTime()
-                if songs[current_song.type] and songs[current_song.type][current_pack] and songs[current_song.type][current_pack][current_song.index] then // current_pack can get set to a different value, while current song stays unchanged. todo: maaaybee fix this? doesnt seem to impact shit too much tho
-                    songs[current_song.type][current_pack][current_song.index].last_duration = current_channel:GetTime()
-                end
-                am_spaghetti_stop(current_channel, current_song.type, current_pack, current_song.index)
+                songs[current_song.typee][current_song.pack][current_song.index].last_duration = current_channel:GetTime()
+                am_spaghetti_stop(current_channel, current_song.typee, current_song.pack, current_song.index)
             end
 
             current_song = song
+            print(current_song.typee, current_pack, current_song.index)
+            if songs[current_song.typee][current_pack][current_song.index] then
+                songs[current_song.typee][current_pack][current_song.index].pack = current_pack
+            end
             current_channel = station
             last_type = typee
 
@@ -455,61 +507,6 @@ local function am_play(typee, delay, force)
         end)
     end)
 end
-
-cvars.AddChangeCallback(force_type:GetName(), function()
-    if not enabled:GetBool() then return end
-    if not amready then return end
-
-    //last_type = nil -- let the networked stuff take over when we're done
-    //if current_song then
-    //    am_spaghetti_stop(current_channel, current_song.type, current_pack, current_song.index)
-    //end
-
-    if force_type:GetInt() <= 0 then return end
-
-    local typee = force_type_array[force_type:GetInt()]
-
-    //if last_type == typee then return end
-    //last_type = typee
-
-    am_play(typee, 0, false)
-end)
-
-net.Receive("am_threat_event", function()
-    if not enabled:GetBool() then return end
-    if not amready then return end
-    local is_targeted = net.ReadBool()
-    local hidden = net.ReadBool()
-    local boss_fight = net.ReadBool()
-    local should_stop = net.ReadBool()
-
-    if should_stop then
-        last_type = nil
-        if current_song then
-            am_spaghetti_stop(current_channel, current_song.type, current_pack, current_song.index)
-        end
-        return
-    end
-
-    if is_targeted then
-        if hidden then
-            typee = "suspense"
-        else
-            if boss_fight then
-                typee = "battle_intensive"
-            else
-                typee = "battle"
-            end
-        end
-    else
-        typee = "background"
-    end
-
-    if last_type == typee then return end
-    last_type = typee
-
-    am_play(typee, 0, false)
-end)
 
 hook.Add("Think", "am_think", function()
     if GetConVar("developer"):GetBool() and current_song then
@@ -535,34 +532,9 @@ hook.Add("Think", "am_think", function()
         stroffset = 0
     end
 
-    if not enabled:GetBool() or not amready or not current_song then return end
-
-    if engine.TickCount() % 30 ~= 0 then return end
-
-    local state = 0
-
-    if IsValid(current_channel) then
-        state = current_channel:GetState()
-    end
-
-    if state == 0 then
-        current_song.last_duration = 0
-
-        //pick_chosen_songs()
-        //if not current_song or not chosen_songs[current_song.typee] or not songs[current_song.typee] then
-        //    return
-        //end
-
-        //chosen_songs[current_song.typee] = songs[current_song.typee][current_pack][math.random(#songs[current_song.typee][current_pack])]
-        //last_type = nil
-        if LocalPlayer():Health() > 0 then
-            am_play(current_song.typee, 0, true)
-        end
-    end
-end)
-
-hook.Add("Think", "am_think_forget", function()
     if not enabled:GetBool() then return end
+
+    local hp = LocalPlayer():Health()
 
     if reset_current_pack:GetBool() then
         if CurTime() - last_pack_forget_time > reset_current_pack:GetInt() then
@@ -575,6 +547,39 @@ hook.Add("Think", "am_think_forget", function()
         if CurTime() - last_forget_time > reset_last_duration:GetInt() then
             last_forget_time = CurTime()
             pick_chosen_songs(false)
+        end
+    end
+
+    if engine.TickCount() % 30 ~= 0 then return end
+
+    local state = 0
+
+    if IsValid(current_channel) then
+        state = current_channel:GetState()
+        if hp <= 0 and not fading_away then
+            am_spaghetti_stop(current_channel, current_song.typee, current_song.pack, current_song.index)
+            return
+        end
+    end
+
+    if force_type:GetInt() > 0 then
+        wish_type = force_type_array[force_type:GetInt()]
+    end
+
+    if last_type != wish_type then
+        if hp > 0 then
+            am_play(wish_type, 0, true)
+            return
+        end
+    end
+
+    if state == 0 then
+        if hp > 0 then
+            if current_song then
+                songs[current_song.typee][current_song.pack][current_song.index].last_duration = 0
+            end
+            chosen_songs[wish_type] = songs[wish_type][current_pack][math.random(#songs[wish_type][current_pack])]
+            am_play(wish_type, 0, true)
         end
     end
 end)
