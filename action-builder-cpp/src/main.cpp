@@ -18,6 +18,7 @@
 #include <cpptrace/cpptrace.hpp>
 
 #pragma comment (lib, "Dwmapi")
+#pragma comment (lib, "Kernel32.lib")
 
 namespace fs = std::filesystem;
 
@@ -178,8 +179,13 @@ LONG VectoredExceptionHandler(_EXCEPTION_POINTERS* ep)
 
     char exception_message[1024];
 
+    if (std::to_string(ep->ExceptionRecord->ExceptionCode) == "3765269347") {
+        return EXCEPTION_CONTINUE_SEARCH;
+    }
+
     snprintf(exception_message, sizeof(exception_message),
-        "Exception Address: %p\nException Code: %lu\nException Flags: %lu\n",
+        "Base Address: %p\nException Address: %p\nException Code: %lu\nException Flags: %lu\n",
+        GetModuleHandleA(NULL),
         ep->ExceptionRecord->ExceptionAddress,
         ep->ExceptionRecord->ExceptionCode,
         ep->ExceptionRecord->ExceptionFlags
@@ -189,9 +195,7 @@ LONG VectoredExceptionHandler(_EXCEPTION_POINTERS* ep)
 
     MessageBoxA(hWindow, message.c_str(), "Unexpected Error!", MB_OK | MB_ICONERROR);
 
-    done = true;
-
-    shutdown();
+    ui::shutdown();
 
     return EXCEPTION_CONTINUE_SEARCH;
 }
