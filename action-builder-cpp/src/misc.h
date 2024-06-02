@@ -78,7 +78,7 @@ static std::string exec(std::string string_cmd) {
 	std::string quoted_cmd = qstr(string_cmd);
 	auto cmd = quoted_cmd.c_str();
 
-	//printf("%s\n", cmd);
+	printf("[EXEC] %s\n", cmd);
 
     std::array<char, 128> buffer;
     std::string result;
@@ -101,7 +101,7 @@ static void _exec(std::string string_cmd, std::string* output) {
 	std::string quoted_cmd = qstr(string_cmd);
 	auto cmd = quoted_cmd.c_str();
 
-	//printf("%s\n", cmd);
+	printf("[_EXEC] %s\n", cmd);
 
 	std::array<char, 128> buffer;
 
@@ -134,7 +134,7 @@ static std::string get_url_host(const std::string& url) {
 typedef size_t(*curl_write)(char*, size_t, size_t, std::string*);
 
 static std::string open_page(std::string url) {
-	//printf("[OPEN_PAGE] Opening %s\n", url.c_str());
+	printf("[OPEN_PAGE] Opening %s\n", url.c_str());
 
 	auto curl = curl_easy_init();
 
@@ -180,7 +180,7 @@ static std::string open_page(std::string url) {
 		std::this_thread::sleep_for(std::chrono::milliseconds(200));
 	}
 
-	//printf("[DEBUG OPEN PAGE] open page failed!!1! %d, %s", status_copy, buffer_copy.c_str());
+	printf("[DEBUG OPEN PAGE] open page failed!!1! %d, %s", status_copy, buffer_copy.c_str());
 
 	//assert(false); // "Failed request after three times."
 

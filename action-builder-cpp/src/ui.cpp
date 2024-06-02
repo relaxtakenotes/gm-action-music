@@ -696,7 +696,7 @@ namespace ui {
 						preview_processing_started = false;
 						song_initialized = false;
 					} else {
-						//printf("[DEBUG] Started processing\n");
+						printf("[DEBUG] Started processing\n");
 						processor::preview(songs::list[current_song_index]);
 						preview_processing_started = true;
 						song_initialized = false;
@@ -708,7 +708,7 @@ namespace ui {
 				ImGui::SameLine();
 				ImGui::Text("Preview active!");
 				if (!song_initialized) {
-					//printf("[DEBUG] Initialized the song!\n");
+					printf("[DEBUG] Initialized the song!\n");
 					playback::init(processor::preview_path, g_volume);
 					song_initialized = true;
 					preview_processing_started = false;

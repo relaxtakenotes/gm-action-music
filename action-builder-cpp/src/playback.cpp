@@ -55,11 +55,11 @@ namespace playback {
     void _init(std::string path, float volume) {
         std::lock_guard<std::mutex> guard(mload);
 
-        //printf("[PLAYBACK: %s] _init started\n", get_filename(path).c_str());
+        printf("[PLAYBACK: %s] _init started\n", get_filename(path).c_str());
 
         shutdown();
 
-        //printf("[PLAYBACK: %s] shutdown previous instance\n", get_filename(path).c_str());
+        printf("[PLAYBACK: %s] shutdown previous instance\n", get_filename(path).c_str());
 
         if (playing)
             stop();
@@ -71,11 +71,11 @@ namespace playback {
 
         ma_result result = ma_decoder_init_file(path.c_str(), NULL, &decoder);
         if (result != MA_SUCCESS) {
-            //printf("[PLAYBACK: %s] init file fail %d\n", get_filename(path).c_str(), result);
+            printf("[PLAYBACK: %s] init file fail %d\n", get_filename(path).c_str(), result);
             return;
         }
 
-        //printf("[PLAYBACK: %s] init file success\n", get_filename(path).c_str());
+        printf("[PLAYBACK: %s] init file success\n", get_filename(path).c_str());
 
         deviceConfig = ma_device_config_init(ma_device_type_playback);
         deviceConfig.playback.format = decoder.outputFormat;
@@ -85,26 +85,23 @@ namespace playback {
         deviceConfig.pUserData = &decoder;
 
         if (ma_device_init(NULL, &deviceConfig, &device) != MA_SUCCESS) {
-            //printf("Failed to open playback device.\n");
+            printf("[PLAYBACK: %s] Failed to open playback device.\n", get_filename(path).c_str());
             ma_decoder_uninit(&decoder);
             return;
         }
 
-        //printf("[PLAYBACK: %s] device init success\n", get_filename(path).c_str());
+        printf("[PLAYBACK: %s] device init success\n", get_filename(path).c_str());
 
         if (ma_device_start(&device) != MA_SUCCESS) {
-            //printf("Failed to start playback device.\n");
+            printf("[PLAYBACK: %s] Failed to start playback device.\n", get_filename(path).c_str());
             ma_device_uninit(&device);
             ma_decoder_uninit(&decoder);
             return;
         }
 
-        if (!waiting_to_play)
-            ma_device_stop(&device);
-        
-        waiting_to_play = false;
+        ma_device_stop(&device);
 
-        //printf("[PLAYBACK: %s] device start and stop success\n", get_filename(path).c_str());
+        printf("[PLAYBACK: %s] device start and stop success\n", get_filename(path).c_str());
 
         ma_uint64 length;
         ma_decoder_get_length_in_pcm_frames(&decoder, &length);
@@ -115,7 +112,7 @@ namespace playback {
 
         //printf("%0.2f\n", duration);
 
-        //printf("[PLAYBACK: %s] get duration and volume set success, we're loaded\n", get_filename(path).c_str());
+        printf("[PLAYBACK: %s] get duration and volume set success, we're loaded\n", get_filename(path).c_str());
 
         loaded = true;
     }
@@ -140,8 +137,7 @@ namespace playback {
     }
 
 	void play() {
-        if (ma_device_get_state(&device) != ma_device_state_stopped) {
-            waiting_to_play = true;
+        if (!loaded || ma_device_get_state(&device) != ma_device_state_stopped) {
             return;
         }
 
@@ -149,7 +145,7 @@ namespace playback {
 	}
 
 	void stop() {
-        if (ma_device_get_state(&device) != ma_device_state_started) {
+        if (!loaded || ma_device_get_state(&device) != ma_device_state_started) {
             waiting_to_play = false;
             return;
         }
@@ -198,6 +194,7 @@ namespace playback {
 
     void set_volume(float vol) {
         if (!loaded) return;
+
         g_volume = vol;
         ma_device_set_master_volume(&device, vol);
     }

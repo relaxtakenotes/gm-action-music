@@ -34,7 +34,7 @@ namespace khinsider {
 
 		for (int i = 0; i < matches.size(); i++) {
 			try {
-				//printf("[MATCH %d]%s\n", i, matches[i].c_str());
+				printf("[MATCH %d]%s\n", i, matches[i].c_str());
 
 				auto indirect_url = get_matches(R"(\"\/game-soundtracks\/album\/.*\/.*\.mp3\")", matches[i])[0];
 
@@ -66,19 +66,19 @@ namespace khinsider {
 
 						auto j_matches = get_matches(R"(<p><a href=\".*\"><span class=\"songDownloadLink\"><i class=\"material-icons\">get_app<\/i>Click here to download as MP3<\/span><\/a>.*<\/p>)", download_page);
 						if (j_matches.size() <= 0) {
-							//printf("[OPEN PAGE] No matches, wtf?-------\n\n%s-------\n\n", download_page.c_str());
+							printf("[OPEN PAGE] No matches, wtf?-------\n\n%s-------\n\n", download_page.c_str());
 							throw("no matches for download page");
 						}
 
 						auto direct_urls = get_matches(R"(https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()!@:%_\+.~#?&\/\/=]*))", j_matches[0]);
 
 						if (direct_urls.size() <= 0) {
-							//printf("[OPEN PAGE] No matches, wtf?-------\n\n%s-------\n\n", j_matches[0].c_str());
+							printf("[OPEN PAGE] No matches, wtf?-------\n\n%s-------\n\n", j_matches[0].c_str());
 							throw("no matches for direct urls");
 						}
 
 						if (!download_file(direct_urls[0], input_path + "\\" + remove_illegal_chars(url_decode(get_filename(direct_urls[0]))))) {
-							//printf("[download_file] failed to download %s\n", direct_urls[0].c_str());
+							printf("[download_file] failed to download %s\n", direct_urls[0].c_str());
 							throw("unable to download");
 						}
 

@@ -35,7 +35,7 @@ bool done = false;
 
 int setup_sdl() {
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_INIT_GAMECONTROLLER) != 0) {
-        //printf("Error: %s\n", SDL_GetError());
+        printf("Error: %s\n", SDL_GetError());
         return -1;
     }
 
@@ -61,13 +61,13 @@ int setup_window() {
     );
 
     if (pWindow == nullptr) {
-        //printf("Error: SDL_CreateWindow(): %s\n", SDL_GetError());
+        printf("Error: SDL_CreateWindow(): %s\n", SDL_GetError());
         return -1;
     }
 
     SDL_SysWMinfo wmInfo = {};
     if (!SDL_GetWindowWMInfo(pWindow, &wmInfo)) {
-        //printf("Error: SDL_GetWindowWMInfo(): %s\n", SDL_GetError());
+        printf("Error: SDL_GetWindowWMInfo(): %s\n", SDL_GetError());
         return -1;
     }
 
