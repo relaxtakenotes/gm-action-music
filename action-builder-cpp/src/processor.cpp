@@ -51,21 +51,19 @@ namespace processor {
 		if (unit.normalize) {
 			auto matches = get_matches(R"(max_volume: .* dB)", output);
 
-			if (matches.size() <= 0)
-				return "invalid";
+			if (matches.size() > 0) {
+				std::string str = matches[0];
 
-			std::string str = matches[0];
+				str = replace_substr("dB", "", str);
+				str = replace_substr(" ", "", str);
+				str = replace_substr("max_volume:", "", str);
+				str = replace_substr("-", "", str);
 
-			str = replace_substr("dB", "", str);
-			str = replace_substr(" ", "", str);
-			str = replace_substr("max_volume:", "", str);
+				printf("[PROCESSOR: %s] Max volume is %s\n", unit.path.c_str(), str.c_str());
 
-			float gain = std::stof(str);
-
-			if (gain != 0.0f)
-				effects.push_back("volume=" + str + "dB");
-
-			//printf("%0.2f\n", gain);
+				if (str != "0.0")
+					effects.push_back("volume=" + str + "dB");
+			}
 		}
 
 		if (unit.start > 0) {

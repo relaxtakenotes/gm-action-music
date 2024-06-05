@@ -185,7 +185,7 @@ namespace ui {
 				"Rename All", "mass-rename", "0",
 				"Configure All", "mass-cfg", "0",
 				"Config", "internal-cfg", "0",
-				"Dupe", "dupe", "78"
+				"Dupe", "dupe", "78" // PAGE DOWN
 			};
 			
 			for (size_t i = 0; i < buttons.size(); i = i + 3) {
@@ -202,7 +202,8 @@ namespace ui {
 
 		if (ImGui::BeginPopupModal("dupe", NULL, window_flags)) {
 			if (songs::list.size() > 0) {
-				auto curr_song = songs::list[current_song_index];
+				std::lock_guard<std::mutex> guard(songs::lock);
+				song& curr_song = songs::get(current_song_index);
 
 				auto path = curr_song.path;
 				auto name = remove_extension(get_filename(path));
@@ -268,17 +269,18 @@ namespace ui {
 			ImGui::Text("This will erase the configuration of your current song. Continue?");
 
 			if (ImGui::Button("Yes!") || is_key_pressed(SDL_SCANCODE_RETURN).pressed) {
-				const int i = current_song_index;
+				std::lock_guard<std::mutex> guard(songs::lock);
+				song& unit = songs::get(current_song_index);
 
-				songs::list[i].action = "unknown";
-				songs::list[i].normalize = false;
-				songs::list[i].fade_end = 0.0f;
-				songs::list[i].fade_start = 0.0f;
-				songs::list[i].start = 0.0f;
-				songs::list[i].end = 0.0f;
+				unit.action = "unknown";
+				unit.normalize = false;
+				unit.fade_end = 0.0f;
+				unit.fade_start = 0.0f;
+				unit.start = 0.0f;
+				unit.end = 0.0f;
 
-				auto path = songs::list[i].path;
-				songs::list[i].name = path.substr(path.find_last_of("/\\") + 1);
+				auto path = unit.path;
+				unit.name = path.substr(path.find_last_of("/\\") + 1);
 
 				ImGui::CloseCurrentPopup();
 			}
@@ -295,16 +297,16 @@ namespace ui {
 			ImGui::Text("Are you sure? You won't be able to return this file.");
 			if (ImGui::Button("Yes!") || is_key_pressed(SDL_SCANCODE_RETURN).pressed) {
 				const int backup = current_song_index;
-				const std::string backup_path = songs::list[backup].path;
-
+				const std::string backup_path = songs::get(backup).path;
 				songs::remove(backup);
 
 				auto size = (int)songs::list.size();
-
 				current_song_index = std::clamp(current_song_index, 0, std::max(size - 1, 0));
 
+				song& unit = songs::get(current_song_index);
+
 				if (songs::list.size() > 0) {
-					playback::init(songs::list[current_song_index].path, g_volume);
+					playback::init(unit.path, g_volume);
 					playback::index = current_song_index;
 				} else {
 					playback::shutdown();
@@ -347,12 +349,15 @@ namespace ui {
 			if (ImGui::Button("Execute")) {
 
 				for (int i = 0; i < (int)songs::list.size(); i++) {
-					auto matches = get_matches(mass_rename_pattern, songs::list[i].name);
+					std::lock_guard<std::mutex> guard(songs::lock);
+
+					song& unit = songs::get(i);
+					auto matches = get_matches(mass_rename_pattern, unit.name);
 
 					if (matches.size() <= 0)
 						continue;
 
-					songs::list[i].name = replace_substr(matches[0], mass_rename_replace, songs::list[i].name);
+					unit.name = replace_substr(matches[0], mass_rename_replace, unit.name);
 				}
 			}
 
@@ -405,17 +410,19 @@ namespace ui {
 			ImGui::InputFloat("Fade End", &mass_cfg_fade_end, 0.1f, 0.5f, "%.2f");
 
 			if (ImGui::Button("Execute")) {
+				std::lock_guard<std::mutex> guard(songs::lock);
 				for (int i = 0; i < (int)songs::list.size(); i++) {
+					song& unit = songs::get(i);
 					if (mass_cfg_start_change)
-						songs::list[i].start = mass_cfg_start;
+						unit.start = mass_cfg_start;
 					if (mass_cfg_end_change)
-						songs::list[i].end = mass_cfg_end;
+						unit.end = mass_cfg_end;
 					if (mass_cfg_normalize_change)
-						songs::list[i].normalize = mass_cfg_normalize;
+						unit.normalize = mass_cfg_normalize;
 					if (mass_cfg_fade_start_change)
-						songs::list[i].fade_start = mass_cfg_fade_start;
+						unit.fade_start = mass_cfg_fade_start;
 					if (mass_cfg_fade_end_change)
-						songs::list[i].fade_end = mass_cfg_fade_end;
+						unit.fade_end = mass_cfg_fade_end;
 				}
 			}
 
@@ -447,6 +454,7 @@ namespace ui {
 		if (ImGui::BeginChild("music_list", ImVec2(size.x - 16, -42), ImGuiChildFlags_Border, ImGuiWindowFlags_HorizontalScrollbar)) {
 			for (int i = 0; i < (int)songs::list.size(); i++) {
 				std::lock_guard<std::mutex> guard(songs::lock);
+				song& unit = songs::get(i);
 
 				auto color_button = ImVec4(0.98f, 0.98f, 0.98f, 0.25f);
 				auto color_button_hover = ImVec4(0.98f, 0.98f, 0.98f, 0.35f);
@@ -460,7 +468,7 @@ namespace ui {
 					if (i % 2 == 0) {
 						color_button.w = 0.2f;
 						color_button_hover.w = 0.3f;
-						color_button_active.w = 0.4f;
+						color_button_active.w = 0.4f; 
 					} else {
 						color_button.w = 0.1f;
 						color_button_hover.w = 0.2f;
@@ -468,7 +476,7 @@ namespace ui {
 					}
 				}
 
-				if (songs::list[i].action == "unknown") {
+				if (unit.action == "unknown") {
 					color_button.y = color_button.z = 0.75f;
 					color_button_hover.y = color_button_hover.z = 0.75f;
 					color_button_active.y = color_button_active.z = 0.75f;
@@ -483,7 +491,7 @@ namespace ui {
 				ImGui::PushStyleColor(ImGuiCol_ButtonActive, color_button_active);
 				ImGui::PushStyleVar(ImGuiStyleVar_ButtonTextAlign, ImVec2(0, 0.5f));
 				
-				if (ImGui::Button(songs::list[i].name.c_str(), ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetTextLineHeightWithSpacing()))) {
+				if (ImGui::Button(std::string(unit.name + "##" + std::to_string(i)).c_str(), ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetTextLineHeightWithSpacing()))) {
 					is_preview = false;
 					current_song_index = i;
 				}
@@ -637,35 +645,37 @@ namespace ui {
 
 			current_song_index = std::clamp(current_song_index, 0, std::max((int)lsize - 1, 0));
 
+			song& unit = songs::get(current_song_index);
+
 			ImGui::Spacing();
 
 			ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x);
-			ImGui::InputText("Name##songname", &songs::list[current_song_index].name);
+			ImGui::InputText("Name##songname", &unit.name);
 			mark_text();
 			ImGui::PopItemWidth();
 
 			ImGui::Spacing();
 
 			if (ImGui::Button("Background"))
-				songs::list[current_song_index].action = "background";
+				unit.action = "background";
 			ImGui::SameLine();
 			if (ImGui::Button("Battle"))
-				songs::list[current_song_index].action = "battle";
+				unit.action = "battle";
 			ImGui::SameLine();
 			if (ImGui::Button("Intensive Battle"))
-				songs::list[current_song_index].action = "battle_intensive";
+				unit.action = "battle_intensive";
 			ImGui::SameLine();
 			if (ImGui::Button("Suspense"))
-				songs::list[current_song_index].action = "suspense";
+				unit.action = "suspense";
 			ImGui::SameLine();
-			ImGui::Text("Action Type: %s", songs::list[current_song_index].action.c_str());
+			ImGui::Text("Action Type: %s", unit.action.c_str());
 
 			ImGui::Spacing();
 
 			if (is_preview)
 				PushDisabled();
 
-			ImGui::Checkbox("Normalize", &songs::list[current_song_index].normalize);
+			ImGui::Checkbox("Normalize", &unit.normalize);
 
 			if (is_preview)
 				PopDisabled();
@@ -676,13 +686,13 @@ namespace ui {
 
 			if (!is_preview) {
 				if (song_initialized) {
-					playback::init(songs::list[current_song_index].path, g_volume);
+					playback::init(unit.path, g_volume);
 				}
 				preview_processing_started = false;
 				song_initialized = false;
 			}
 
-			auto preview_path = processor::get_preview_path(songs::list[current_song_index]);
+			auto preview_path = processor::get_preview_path(unit);
 
 			if (is_preview && processor::preview_path != preview_path) {
 				if (!song_initialized) {
@@ -697,7 +707,7 @@ namespace ui {
 						song_initialized = false;
 					} else {
 						printf("[DEBUG] Started processing\n");
-						processor::preview(songs::list[current_song_index]);
+						processor::preview(unit);
 						preview_processing_started = true;
 						song_initialized = false;
 					}
@@ -723,7 +733,7 @@ namespace ui {
 			if (k_up.time <= 0 && k_down.time <= 0) {
 				if (playback::index != current_song_index) {
 					if (!is_preview) {
-						playback::init(songs::list[current_song_index].path, g_volume);
+						playback::init(unit.path, g_volume);
 					} else {
 						song_initialized = false;
 						preview_processing_started = false;
@@ -749,25 +759,25 @@ namespace ui {
 				PushDisabled();
 
 			if (ImGui::Button("Mark Start"))
-				songs::list[current_song_index].start = time;
+				unit.start = time;
 			ImGui::SameLine();
 			if (ImGui::Button("Mark End"))
-				songs::list[current_song_index].end = time;
+				unit.end = time;
 
-			if (songs::list[current_song_index].end < songs::list[current_song_index].start) {
-				songs::list[current_song_index].end = songs::list[current_song_index].start;
+			if (unit.end < unit.start) {
+				unit.end = unit.start;
 			}
 
 			ImGui::SameLine();
 
-			ImGui::Text("Start: %0.2f | End: %0.2f", songs::list[current_song_index].start, songs::list[current_song_index].end);
+			ImGui::Text("Start: %0.2f | End: %0.2f", unit.start, unit.end);
 
 			ImGui::Spacing();
 
 			ImGui::PushItemWidth(50.0f);
-			ImGui::InputFloat("Fade Start", &songs::list[current_song_index].fade_start);
+			ImGui::InputFloat("Fade Start", &unit.fade_start);
 			ImGui::SameLine();
-			ImGui::InputFloat("Fade End", &songs::list[current_song_index].fade_end);
+			ImGui::InputFloat("Fade End", &unit.fade_end);
 
 			if (is_preview)
 				PopDisabled();
@@ -924,17 +934,19 @@ namespace ui {
 
 		std::lock_guard<std::mutex> guard(songs::lock);
 
+		song& unit = songs::get(current_song_index);
+
 		if (toggle.pressed)
 			playback::toggle();
 
 		if (a_background.pressed)
-			songs::list[current_song_index].action = "background";
+			unit.action = "background";
 		if (a_battle.pressed)
-			songs::list[current_song_index].action = "battle";
+			unit.action = "battle";
 		if (a_battle_intensive.pressed)
-			songs::list[current_song_index].action = "battle_intensive";
+			unit.action = "battle_intensive";
 		if (a_suspense.pressed)
-			songs::list[current_song_index].action = "suspense";
+			unit.action = "suspense";
 
 		if (preview.pressed)
 			is_preview = !is_preview;
@@ -943,25 +955,25 @@ namespace ui {
 			return;
 
 		if (normalize.pressed)
-			songs::list[current_song_index].normalize = !songs::list[current_song_index].normalize;
+			unit.normalize = !unit.normalize;
 
 		if (mark_start.pressed)
-			songs::list[current_song_index].start = playback::get_visual_time();
+			unit.start = playback::get_visual_time();
 		if (mark_end.pressed)
-			songs::list[current_song_index].end = playback::get_visual_time();
+			unit.end = playback::get_visual_time();
 
 		if (mark_fade_start_plus.time > 0)
-			songs::list[current_song_index].fade_start += std::max(mark_fade_start_plus.time * mark_fade_start_plus.time / 20, 0.01f);
+			unit.fade_start += std::max(mark_fade_start_plus.time * mark_fade_start_plus.time / 20, 0.01f);
 		if (mark_fade_start_minus.time > 0)
-			songs::list[current_song_index].fade_start -= std::max(mark_fade_start_plus.time * mark_fade_start_plus.time / 20, 0.01f);
+			unit.fade_start -= std::max(mark_fade_start_plus.time * mark_fade_start_plus.time / 20, 0.01f);
 
 		if (mark_fade_end_plus.time > 0)
-			songs::list[current_song_index].fade_end += std::max(mark_fade_end_plus.time * mark_fade_end_plus.time / 20, 0.01f);
+			unit.fade_end += std::max(mark_fade_end_plus.time * mark_fade_end_plus.time / 20, 0.01f);
 		if (mark_fade_end_minus.time > 0)
-			songs::list[current_song_index].fade_end -= std::max(mark_fade_end_minus.time * mark_fade_end_minus.time / 20, 0.01f);
+			unit.fade_end -= std::max(mark_fade_end_minus.time * mark_fade_end_minus.time / 20, 0.01f);
 
-		songs::list[current_song_index].fade_start = std::max(songs::list[current_song_index].fade_start, 0.0f);
-		songs::list[current_song_index].fade_end = std::max(songs::list[current_song_index].fade_end, 0.0f);
+		unit.fade_start = std::max(unit.fade_start, 0.0f);
+		unit.fade_end = std::max(unit.fade_end, 0.0f);
 	}
 
 	void bottom_segment() {

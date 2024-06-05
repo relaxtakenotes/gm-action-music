@@ -29,6 +29,8 @@ namespace songs {
 		float fade_start,
 		float fade_end)
 	{
+		std::lock_guard<std::mutex> guard(lock);
+
 		song unit;
 
 		unit.name = name;
@@ -56,6 +58,8 @@ namespace songs {
 		float fade_end,
 		int pos)
 	{
+		std::lock_guard<std::mutex> guard(lock);
+
 		song unit;
 
 		unit.name = name;
@@ -68,6 +72,12 @@ namespace songs {
 		unit.fade_end = fade_end;
 
 		list.insert(list.begin() + pos, unit);
+	}
+
+	song& get(int idx) {
+		idx = std::clamp(idx, 0, (int)list.size() - 1);
+
+		return list[idx];
 	}
 
 	void remove(int idx) {

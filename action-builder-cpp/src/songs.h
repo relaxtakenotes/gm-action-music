@@ -40,6 +40,7 @@ namespace songs {
 		float fade_end,
 		int pos
 	);
+	song& get(int idx);
 	void remove(int idx);
 	int find_song_by_attr(std::string attr_type, std::string query);
 	void save();

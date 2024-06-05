@@ -175,13 +175,13 @@ void shutdown() {
 
 LONG VectoredExceptionHandler(_EXCEPTION_POINTERS* ep)
 {
+    if (ep->ExceptionRecord->ExceptionCode == 0xE06D7363) {
+        return EXCEPTION_CONTINUE_SEARCH;
+    }
+
     auto trace = cpptrace::generate_trace().to_string();
 
     char exception_message[1024];
-
-    if (std::to_string(ep->ExceptionRecord->ExceptionCode) == "3765269347") {
-        return EXCEPTION_CONTINUE_SEARCH;
-    }
 
     snprintf(exception_message, sizeof(exception_message),
         "Base Address: %p\nException Address: %p\nException Code: %lu\nException Flags: %lu\n",
@@ -191,7 +191,7 @@ LONG VectoredExceptionHandler(_EXCEPTION_POINTERS* ep)
         ep->ExceptionRecord->ExceptionFlags
     );
 
-    std::string message = std::string("\n\nDon't worry. If you see this window, it means all of your progress has been saved.\nPlease copy this message (CTRL+C on the window) and post it on github, along with a way to reproduce it:\n\n" + std::string(exception_message) + trace);
+    std::string message = std::string("Don't worry. If you see this window, it means all of your progress has been saved.\nPlease copy this message (CTRL+C on the window) and post it on github, along with a way to reproduce it:\n\n" + std::string(exception_message) + trace);
 
     MessageBoxA(hWindow, message.c_str(), "Unexpected Error!", MB_OK | MB_ICONERROR);
 
