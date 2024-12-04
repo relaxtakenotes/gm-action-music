@@ -53,7 +53,7 @@ for _, typee in ipairs({"battle", "background", "battle_intensive", "suspense"})
 
         if not current_song then return end
 
-        if current_song.typee == typee then
+        if IsValid(current_channel) and current_song.typee == typee then
             current_channel:SetVolume(tonumber(value_new))
         end
     end)
@@ -85,12 +85,17 @@ local function get_true_keys(tbl)
     return hold
 end
 
+local cached_local_dirs = nil
+local cached_local_files = nil
+
 local function find_addon_name_local(path)
     local addon_name = "Unknown"
 
-    local files, dirs = file.Find("addons/*", "GAME")
+    if not cached_local_dirs then
+        cached_local_files, cached_local_dirs = file.Find("addons/*", "GAME")
+    end
 
-    for _, dir in ipairs(dirs) do
+    for _, dir in ipairs(cached_local_dirs) do
         if file.Exists("addons/" .. dir .. "/" ..path, "GAME") then
             addon_name = dir
             break
@@ -100,22 +105,26 @@ local function find_addon_name_local(path)
     return addon_name
 end
 
-local function categorize_song_path(song)
+local cached_addons = nil
+
+local function categorize_song_path(song_type, song_path)
     local pack_name = "Unknown"
 
-    for _, addon in pairs(engine.GetAddons()) do
+    if not cached_addons then cached_addons = engine.GetAddons() end
+
+    for _, addon in pairs(cached_addons) do
         if not addon or not addon.title or not addon.wsid or not addon.mounted or not addon.downloaded then continue end
 
-        if file.Exists(song.path, addon.title) then
+        if file.Exists(song_path, addon.title) then
             pack_name = addon.title
             break
         end
     end
 
-    if pack_name == "Unknown" then pack_name = find_addon_name_local(song.path) end
+    if pack_name == "Unknown" then pack_name = find_addon_name_local(song_path) end
 
-    if not songs[song.typee][pack_name] then
-        songs[song.typee][pack_name] = {}
+    if not songs[song_type][pack_name] then
+        songs[song_type][pack_name] = {}
     end
 
     packs[pack_name] = true
@@ -133,8 +142,9 @@ local function parse_am()
             song.path = search_path .. mfile
             song.last_duration = 0
             song.typee = split_str[#split_str - 1]
-            local pack_category = categorize_song_path(song)
+            local pack_category = categorize_song_path(song.typee, song.path)
             song.index = #songs[song.typee][pack_category] + 1
+            song.pack = pack_category
             local start_time_uf = string.match(mfile, "_%d%d_%d%d_%d%d_%d%d_")
 
             if start_time_uf then
@@ -169,20 +179,21 @@ local function parse_nombat()
                 song.typee = "background"
             end
 
-            local pack_category = categorize_song_path(song)
+            local pack_category = categorize_song_path(song.typee, song.path)
             song.index = #songs[song.typee][pack_category] + 1
+            song.pack = pack_category
             table.insert(songs[song.typee][pack_category], song)
 
             if song.typee == "battle" then
                 local song_copy = table.Copy(song)
                 song_copy.typee = "battle_intensive"
-                table.insert(songs[song_copy.typee][categorize_song_path(song_copy)], song_copy)
+                table.insert(songs[song_copy.typee][categorize_song_path(song_copy.typee, song_copy.path)], song_copy)
             end
 
             if song.typee == "background" then
                 local song_copy = table.Copy(song)
                 song_copy.typee = "suspense"
-                table.insert(songs[song_copy.typee][categorize_song_path(song_copy)], song_copy)
+                table.insert(songs[song_copy.typee][categorize_song_path(song_copy.typee, song_copy.path)], song_copy)
             end
         end
     end
@@ -219,8 +230,9 @@ local function parse_dynamo(dirr)
                 song.typee = "battle"
             end
 
-            local pack_category = categorize_song_path(song)
+            local pack_category = categorize_song_path(song.typee, song.path)
             song.index = #songs[song.typee][pack_category] + 1
+            song.pack = pack_category
 
             table.insert(songs[song.typee][pack_category], song)
         end
@@ -290,7 +302,7 @@ concommand.Add("cl_am_verify_songs", function()
     end
 end)
 
-local function fade_channel(channel, to)
+local function fade_channel(channel, to, multiplier)
     local from = channel:GetVolume()
     local lerp_t = 0
     timer_name_counter = timer_name_counter + 1
@@ -299,7 +311,7 @@ local function fade_channel(channel, to)
     fading_away = true
     timer.Create(timer_name, 0, math.huge, function()
         if not IsValid(channel) then return end
-        lerp_t = math.min(1, lerp_t + fade_time:GetFloat() * FrameTime())
+        lerp_t = math.min(1, lerp_t + fade_time:GetFloat() * FrameTime() * multiplier / game.GetTimeScale())
         channel:SetVolume(Lerp(lerp_t, from, to))
 
         if lerp_t == 1 then
@@ -320,7 +332,13 @@ local function am_spaghetti_stop(target_channel, typee, pack, index)
         end
 
         past_channel = target_channel
-        fade_channel(past_channel, 0)
+
+        local mult = 1
+        if typee == "battle" or typee == "battle_intensive" then // this means we're switching FROM battle to something calmer
+            mult = 0.3
+        end
+
+        fade_channel(past_channel, 0, mult)
     end
 end
 
@@ -473,7 +491,7 @@ local function am_play(typee, delay, force)
                 name = string.Replace(name, matched, "")
             end
 
-            if not station then
+            if not IsValid(station) or not station then
                 am_notify("Failed to play: " .. name .. "\n\t\t\tError Code: " .. error_code .. "\n\t\t\tError: " .. error_string .. "\n\t\t\tUsually any error can be resolved by making sure your title has no unicode characters. If you can't find any, simplify it.")
                 return
             end
@@ -486,11 +504,11 @@ local function am_play(typee, delay, force)
                 am_spaghetti_stop(current_channel, current_song.typee, current_song.pack, current_song.index)
             end
 
-            current_song = song
             //print(current_song.typee, current_pack, current_song.index)
-            if songs[current_song.typee][current_pack][current_song.index] then
-                songs[current_song.typee][current_pack][current_song.index].pack = current_pack
-            end
+            //if songs[current_song.typee][current_pack][current_song.index] then
+            //    songs[current_song.typee][current_pack][current_song.index].pack = current_pack
+            //end
+            current_song = song
             current_channel = station
             last_type = typee
 
@@ -503,7 +521,7 @@ local function am_play(typee, delay, force)
             end
 
             current_channel:SetVolume(0)
-            fade_channel(current_channel, volume_scale[typee]:GetFloat())
+            fade_channel(current_channel, volume_scale[typee]:GetFloat(), 1)
         end)
     end)
 end

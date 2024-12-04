@@ -10,7 +10,7 @@
 
 #include "imgui/imgui.h"
 #include "imgui/imgui_impl_sdl2.h"
-#include "imgui/imgui_impl_opengl3.h"
+#include "imgui/imgui_impl_sdlrenderer2.h"
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_opengl.h>
 #include <SDL2/SDL_syswm.h>
@@ -28,6 +28,7 @@ int wx = 700;
 int wy = 850;
 
 SDL_Window* pWindow = nullptr;
+SDL_Renderer* renderer = nullptr;
 SDL_GLContext glContext = nullptr;
 HWND hWindow;
 ImGuiIO io;
@@ -72,6 +73,12 @@ int setup_window() {
         return -1;
     }
 
+    renderer = SDL_CreateRenderer(pWindow, -1, SDL_RENDERER_PRESENTVSYNC | SDL_RENDERER_ACCELERATED);
+    if (renderer == nullptr) {
+        printf("Error: SDL_CreateRenderer(): %s\n", SDL_GetError());
+        return 0;
+    }
+
     hWindow = wmInfo.info.win.window;
     int attr = 1;
     DwmSetWindowAttribute(hWindow, (DWORD)DWMWA_USE_IMMERSIVE_DARK_MODE, &attr, sizeof(attr));
@@ -103,10 +110,6 @@ void setup_base() {
     cpptrace::register_terminate_handler();
     cpptrace::enable_inlined_call_resolution(true);
 
-    glContext = SDL_GL_CreateContext(pWindow);
-    SDL_GL_MakeCurrent(pWindow, glContext);
-    SDL_GL_SetSwapInterval(1);
-
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
 
@@ -121,8 +124,8 @@ void setup_base() {
 
     //ImGui::StyleColorsDark();
 
-    ImGui_ImplSDL2_InitForOpenGL(pWindow, glContext);
-    ImGui_ImplOpenGL3_Init(glslVersion);
+    ImGui_ImplSDL2_InitForSDLRenderer(pWindow, renderer);
+    ImGui_ImplSDLRenderer2_Init(renderer);
 }
 
 void handle_events() {
@@ -143,30 +146,30 @@ void handle_events() {
 }
 
 void new_frame() {
-    ImGui_ImplOpenGL3_NewFrame();
+    ImGui_ImplSDLRenderer2_NewFrame();
     ImGui_ImplSDL2_NewFrame();
     ImGui::NewFrame();
 }
 
 void render_frame() {
-    glViewport(0, 0, (int)io.DisplaySize.x, (int)io.DisplaySize.y);
-
     static auto clear_color = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
-    glClearColor(clear_color.x * clear_color.w, clear_color.y * clear_color.w, clear_color.z * clear_color.w, clear_color.w);
-    glClear(GL_COLOR_BUFFER_BIT);
 
-    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-    SDL_GL_SwapWindow(pWindow);
+    ImGui::Render();
+    SDL_RenderSetScale(renderer, io.DisplayFramebufferScale.x, io.DisplayFramebufferScale.y);
+    SDL_SetRenderDrawColor(renderer, (Uint8)(clear_color.x * 255), (Uint8)(clear_color.y * 255), (Uint8)(clear_color.z * 255), (Uint8)(clear_color.w * 255));
+    SDL_RenderClear(renderer);
+    ImGui_ImplSDLRenderer2_RenderDrawData(ImGui::GetDrawData(), renderer);
+    SDL_RenderPresent(renderer);
 }
 
 void shutdown() {
     ui::shutdown();
 
-    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplSDLRenderer2_Shutdown();
     ImGui_ImplSDL2_Shutdown();
     ImGui::DestroyContext();
 
-    SDL_GL_DeleteContext(glContext);
+    SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(pWindow);
     SDL_Quit();
 

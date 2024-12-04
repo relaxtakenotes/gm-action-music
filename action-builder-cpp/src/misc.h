@@ -21,8 +21,6 @@
 #include <string>
 #include <vector>
 
-
-
 namespace fs = std::filesystem;
 
 template <typename T>
@@ -52,13 +50,13 @@ public:
 	}
 };
 
-static std::string input_path = fs::current_path().u8string() + "\\input";
-static std::string output_path = fs::current_path().u8string() + "\\output";
+inline std::string input_path = fs::current_path().u8string() + "\\input";
+inline std::string output_path = fs::current_path().u8string() + "\\output";
 
-static auto c_input_path = input_path.c_str();
-static auto c_output_path = output_path.c_str();
+inline auto c_input_path = input_path.c_str();
+inline auto c_output_path = output_path.c_str();
 
-static std::string remove_illegal_chars(std::string path) {
+inline std::string remove_illegal_chars(std::string path) {
 	static const std::string illegal_chars = "\\/:?\"<>|";
 	std::string copy;
 
@@ -70,11 +68,11 @@ static std::string remove_illegal_chars(std::string path) {
 	return copy;
 }
 
-static std::string qstr(std::string input) {
+inline std::string qstr(std::string input) {
 	return std::string("\"" + input + "\"");
 }
 
-static std::string exec(std::string string_cmd) {
+inline std::string exec(std::string string_cmd) {
 	std::string quoted_cmd = qstr(string_cmd);
 	auto cmd = quoted_cmd.c_str();
 
@@ -92,12 +90,12 @@ static std::string exec(std::string string_cmd) {
     return result;
 }
 
-static void async_exec(std::string cmd) {
+inline void async_exec(std::string cmd) {
 	std::thread thread(exec, cmd);
 	thread.detach();
 }
 
-static void _exec(std::string string_cmd, std::string* output) {
+inline void _exec(std::string string_cmd, std::string* output) {
 	std::string quoted_cmd = qstr(string_cmd);
 	auto cmd = quoted_cmd.c_str();
 
@@ -113,11 +111,11 @@ static void _exec(std::string string_cmd, std::string* output) {
 		*output += buffer.data();
 }
 
-static void async_exec_output(std::string cmd, std::string *output) {
+inline void async_exec_output(std::string cmd, std::string *output) {
 	std::thread(_exec, cmd, output).detach();
 }
 
-static std::string replace_substr(std::string olds, std::string news, std::string target) {
+inline std::string replace_substr(std::string olds, std::string news, std::string target) {
 	size_t start{ target.find(olds) };
 	while (start != std::string::npos) {
 		target.replace(start, olds.length(), news);
@@ -126,14 +124,14 @@ static std::string replace_substr(std::string olds, std::string news, std::strin
 	return target;
 }
 
-static std::string get_url_host(const std::string& url) {
+inline std::string get_url_host(const std::string& url) {
 	std::regex urlRe("^.*://([^/?:]+)/?.*$");
 	return std::regex_replace(url.c_str(), urlRe, "$1");
 }
 
 typedef size_t(*curl_write)(char*, size_t, size_t, std::string*);
 
-static std::string open_page(std::string url) {
+inline std::string open_page(std::string url) {
 	printf("[OPEN_PAGE] Opening %s\n", url.c_str());
 
 	auto curl = curl_easy_init();
@@ -189,7 +187,7 @@ static std::string open_page(std::string url) {
 	return "";
 }
 
-static bool download_file(std::string url, std::string path) {
+inline bool download_file(std::string url, std::string path) {
 	auto buffer = open_page(url);
 
 	if (buffer.size() <= 0)
@@ -206,26 +204,26 @@ static bool download_file(std::string url, std::string path) {
 	return true;
 }
 
-static std::string relpath(std::string path) {
+inline std::string relpath(std::string path) {
 	auto rel = fs::current_path().u8string() + "\\" + path;
 	//printf("%s\n", rel.c_str());
 	return rel;
 }
 
-static inline bool file_exists(const std::string& name) {
+inline bool file_exists(const std::string& name) {
 	std::ifstream f(name.c_str());
 	return f.good();
 }
 
-static std::string get_filename(std::string path) {
+inline std::string get_filename(std::string path) {
 	return path.substr(path.find_last_of("/\\") + 1);
 }
 
-static std::string remove_extension(std::string filename) {
+inline std::string remove_extension(std::string filename) {
 	return filename.substr(0, filename.find_last_of("."));
 }
 
-static std::vector<std::string> get_matches(std::string pattern, std::string input) {
+inline std::vector<std::string> get_matches(std::string pattern, std::string input) {
 	const auto r = std::regex(pattern);
 
 	std::vector<std::string> matches;
@@ -243,7 +241,7 @@ static std::vector<std::string> get_matches(std::string pattern, std::string inp
 	return matches;
 }
 
-static std::string url_encode(std::string str) {
+inline std::string url_encode(std::string str) {
 	std::string new_str = "";
 
 	char c;
@@ -270,7 +268,7 @@ static std::string url_encode(std::string str) {
 	return new_str;
 }
 
-static std::string url_decode(std::string str) {
+inline std::string url_decode(std::string str) {
 	std::string ret;
 
 	char ch;
@@ -295,6 +293,6 @@ static std::string url_decode(std::string str) {
 }
 
 // uses a dot instead of a comma. caused by setlocale .utf8
-static std::string float_to_string(float val) {
+inline std::string float_to_string(float val) {
 	return replace_substr(",", ".", std::to_string(val));
 }

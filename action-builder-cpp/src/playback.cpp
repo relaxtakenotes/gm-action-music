@@ -28,9 +28,7 @@ namespace playback {
     float time = 0;
     float g_volume = 0;
 
-    std::mutex mseek;
-    std::mutex mload;
-    std::mutex mshutdown;
+    std::mutex lock;
 
     void data_callback(ma_device* pDevice, void* pOutput, const void* pInput, ma_uint32 frameCount)  {
         ma_decoder* pDecoder = (ma_decoder*)pDevice->pUserData;
@@ -53,13 +51,13 @@ namespace playback {
     }
 
     void _init(std::string path, float volume) {
-        std::lock_guard<std::mutex> guard(mload);
-
-        printf("[PLAYBACK: %s] _init started\n", get_filename(path).c_str());
+        printf("[PLAYBACK: %s] shutdown previous instance\n", get_filename(path).c_str());
 
         shutdown();
 
-        printf("[PLAYBACK: %s] shutdown previous instance\n", get_filename(path).c_str());
+        std::lock_guard<std::mutex> guard(lock);
+
+        printf("[PLAYBACK: %s] _init started\n", get_filename(path).c_str());
 
         if (playing)
             stop();
@@ -122,7 +120,7 @@ namespace playback {
 	}
 
     void shutdown() {
-        std::lock_guard<std::mutex> guard(mshutdown);
+        std::lock_guard<std::mutex> guard(lock);
 
         playing = false;
         loaded = false;
@@ -176,7 +174,7 @@ namespace playback {
 
         desired_time = std::max(desired_time, 0.0f);
 
-        std::lock_guard<std::mutex> guard(mseek);
+        std::lock_guard<std::mutex> guard(lock);
 
         if (playing)
             stop();

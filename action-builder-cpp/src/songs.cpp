@@ -11,6 +11,7 @@
 #include "songs.h"
 #include "misc.h"
 #include "json.h"
+#include "playback.h"
 
 namespace fs = std::filesystem;
 using json = nlohmann::json;
