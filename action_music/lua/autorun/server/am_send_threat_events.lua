@@ -17,10 +17,9 @@ local ignore_list = {"npc_clawscanner", "npc_stalker", "npc_turret_floor", "npc_
 local recent_shots = {}
 
 local function targeted_teammate_is_near(target, ply)
-	local disp = target:Disposition(ply)
-
     if not allow_team_trigger:GetBool() then return false end
     if not target:IsNPC() then return false end
+    if not target.Disposition then return false end
     if target:Disposition(ply) ~= D_LI then return false end
     if target:GetPos():Distance(ply:GetPos()) > 1250 and not target.am_teammate_was_close then return false end
     target.am_teammate_was_close = true
