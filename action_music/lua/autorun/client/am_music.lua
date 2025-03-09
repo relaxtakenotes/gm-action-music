@@ -199,6 +199,53 @@ local function parse_nombat()
     end
 end
 
+local function parse_sixteenthnote()
+    local function add(directory, mfile, file_type)
+        local song = {}
+
+        song.path = "sound/16thnote/" .. directory .. "/" .. file_type .. "/" .. mfile
+        song.last_duration = 0
+
+        if file_type == "ambient" then
+            song.typee = "background"
+        else
+            song.typee = "battle"
+        end
+
+        local pack_category = categorize_song_path(song.typee, song.path)
+        song.index = #songs[song.typee][pack_category] + 1
+        song.pack = pack_category
+        table.insert(songs[song.typee][pack_category], song)
+
+        if song.typee == "battle" then
+            local song_copy = table.Copy(song)
+            song_copy.typee = "battle_intensive"
+            table.insert(songs[song_copy.typee][categorize_song_path(song_copy.typee, song_copy.path)], song_copy)
+        end
+
+        if song.typee == "background" then
+            local song_copy = table.Copy(song)
+            song_copy.typee = "suspense"
+            table.insert(songs[song_copy.typee][categorize_song_path(song_copy.typee, song_copy.path)], song_copy)
+        end
+    end
+
+    local _, directories = file.Find("sound/16thnote/*", "GAME")
+
+    for i, directory in ipairs(directories) do
+        local ambient_files, _ = file.Find("sound/16thnote/" .. directory .. "/ambient/*", "GAME")
+        local combat_files, _ = file.Find("sound/16thnote/" .. directory .. "/combat/*", "GAME")
+
+        for j, mfile in ipairs(ambient_files) do
+            add(directory, mfile, "ambient")
+        end
+
+        for j, mfile in ipairs(combat_files) do
+            add(directory, mfile, "combat")
+        end
+    end
+end
+
 local function parse_dynamo(dirr)
     for i, search_path in ipairs({"sound/" .. dirr .. "/ambient/", "sound/" .. dirr .. "/combat/bosses/", "sound/" .. dirr .. "/combat/cops/", "sound/" .. dirr .. "/combat/soldiers/", "sound/" .. dirr .. "/combat/aliens/"}) do
         local files, _ = file.Find(search_path .. "*", "GAME")
@@ -267,6 +314,7 @@ local function initialize_songs()
     parse_nombat()
     parse_dynamo("battlemusic")
     parse_dynamo("ayykyu_dynmus")
+    parse_sixteenthnote()
 
     if file.Exists("am_packs.json", "DATA") then
         local saved_packs = util.JSONToTable(file.Read("am_packs.json", "DATA"))

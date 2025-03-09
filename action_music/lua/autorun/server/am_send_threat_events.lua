@@ -1,4 +1,5 @@
 ﻿util.AddNetworkString("am_threat_event")
+
 local allow_team_trigger = CreateConVar("sv_am_allow_team_trigger", "1", FCVAR_ARCHIVE, "Allow the mod to mark the player as targeted if close friendly npc's are being targeted as well.")
 local allow_alt_trigger = CreateConVar("sv_am_allow_alternate_trigger", "1", FCVAR_ARCHIVE, "If the npc is close to you, hates you and is in combat/alert, then mark him as targeting us.")
 local enemy_threshold = CreateConVar("sv_am_enemy_threshold", "8", FCVAR_ARCHIVE, "If there are more than some amount of npc's that are ready to kick your ass, consider this an intense battle.")
@@ -12,7 +13,7 @@ local ignore_noncombatans = CreateConVar("sv_am_ignore_noncombatans", "1", FCVAR
 
 local bosses = {"npc_combinegunship", "npc_hunter", "npc_helicopter", "npc_strider", "a_shit_ton_of_enemies"}
 
-local ignore_list = {"npc_clawscanner", "npc_stalker", "npc_turret_floor", "npc_combinedropship", "npc_cscanner", "npc_turret_ceiling", "npc_combine_camera", "npc_crow", "npc_pigeon", "npc_seagull"}
+local ignore_list = {"npc_clawscanner", "npc_stalker", "npc_turret_floor", "npc_combinedropship", "npc_cscanner", "npc_turret_ceiling", "npc_combine_camera", "npc_crow", "npc_pigeon", "npc_seagull", "npc_manhack", "npc_rollermine", "npc_antlion_grub", "npc_barnacle", "npc_headcrab", "npc_headcrab_black", "npc_headcrab_fast"}
 
 local recent_shots = {}
 
@@ -23,7 +24,6 @@ local function targeted_teammate_is_near(target, ply)
     if target:Disposition(ply) ~= D_LI then return false end
     if target:GetPos():Distance(ply:GetPos()) > 1250 and not target.am_teammate_was_close then return false end
     target.am_teammate_was_close = true
-	
 
     return true
 end
