@@ -408,6 +408,8 @@ net.Receive("am_threat_event", function()
     local boss_fight = net.ReadBool()
     local should_stop = net.ReadBool()
 
+    /*
+
     if should_stop then
         last_type = nil
         if current_song then
@@ -416,6 +418,8 @@ net.Receive("am_threat_event", function()
         end
         return
     end
+
+    */
 
     if is_targeted then
         if hidden then
